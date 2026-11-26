@@ -1,0 +1,1922 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô Phỏng Hệ Thống Điện Mặt Trời Hybrid</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts: Be Vietnam Pro & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Be Vietnam Pro"', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        html {
+            font-size: 15.5px;
+        }
+        body {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            letter-spacing: -0.01em;
+            overflow-x: hidden;
+        }
+        svg text {
+            font-family: 'Be Vietnam Pro', sans-serif;
+        }
+
+        /* Custom Range Slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            cursor: pointer;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 7px;
+            border-radius: 999px;
+            background: #cbd5e1;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            margin-top: -5.5px;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #0284c7;
+            border: 2.5px solid #ffffff;
+            box-shadow: 0 2px 6px rgba(2, 132, 199, 0.45);
+            transition: transform 0.15s ease;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+
+        /* Day / Night Split Slider Special Styling */
+        input[type="range"].day-night-slider::-webkit-slider-runnable-track {
+            background: linear-gradient(90deg, #f59e0b 0%, #f59e0b var(--day-pct, 60%), #4f46e5 var(--day-pct, 60%), #4f46e5 100%);
+        }
+        input[type="range"].day-night-slider::-webkit-slider-thumb {
+            background: #ffffff;
+            border: 3px solid #f59e0b;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+        }
+
+        /* SVG Power Flow Animations */
+        @keyframes flowForward {
+            to {
+                stroke-dashoffset: -36;
+            }
+        }
+        @keyframes flowReverse {
+            to {
+                stroke-dashoffset: 36;
+            }
+        }
+        .flow-line-forward {
+            stroke-dasharray: 10 8;
+            animation: flowForward var(--flow-speed, 1.2s) linear infinite;
+        }
+        .flow-line-reverse {
+            stroke-dasharray: 10 8;
+            animation: flowReverse var(--flow-speed, 1.2s) linear infinite;
+        }
+        .flow-line-idle {
+            stroke-dasharray: 4 6;
+            opacity: 0.35;
+        }
+
+        @keyframes pulseAlert {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.45; }
+        }
+        .animate-alert {
+            animation: pulseAlert 1.2s infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header Bar -->
+    <header class="border-b border-slate-200 bg-white/95 backdrop-blur-md sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-md shadow-amber-500/20">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-slate-900">Mô Phỏng Hệ Thống Điện Mặt Trời Hybrid</h1>
+                    <p class="text-xs text-slate-600 font-medium">Biến tần Solis Hybrid • Pin SolisStorage • Chuẩn 4,5h nắng/ngày</p>
+                </div>
+            </div>
+
+            <!-- Live Time & Playback Controls -->
+            <div class="flex items-center gap-2 sm:gap-3 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl">
+                <span id="headerPeriodBadge" class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">☀️ Ban ngày</span>
+                <span id="headerClock" class="font-mono text-sm sm:text-base font-bold text-slate-900">12:00</span>
+                <div class="h-4 w-px bg-slate-300 mx-0.5"></div>
+                <button id="btnPlayPause" class="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-sm">
+                    <span id="playIcon">⏸</span>
+                    <span id="playText">Tạm dừng</span>
+                </button>
+                <button id="btnSpeed" class="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-200 border border-slate-300 text-slate-800 font-mono text-xs font-bold transition" title="Tốc độ mô phỏng">
+                    1x
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+        <!-- System Status / Alert Banner -->
+        <div id="systemAlertBanner" class="hidden rounded-xl border px-4 py-3 flex items-center justify-between gap-3 transition-all shadow-sm">
+            <div class="flex items-center gap-3">
+                <span id="alertIcon" class="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-lg"></span>
+                <div>
+                    <h4 id="alertTitle" class="text-sm font-bold"></h4>
+                    <p id="alertDesc" class="text-xs opacity-95"></p>
+                </div>
+            </div>
+            <span id="alertBadge" class="text-xs font-mono font-bold px-2.5 py-1 rounded-md"></span>
+        </div>
+
+        <!-- Top Grid: Interactive Schematic (Left 7 cols) + Control Panel (Right 5 cols) -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Left Column: Live Animated Schematic Diagram -->
+            <div class="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-sm">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <div>
+                        <h2 class="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" id="modeIndicatorDot"></span>
+                            Sơ Đồ Nguyên Lý & Dòng Năng Lượng Thời Gian Thực
+                        </h2>
+                        <p id="currentModeLabel" class="text-xs text-slate-600 font-medium mt-0.5">Chế độ: Tự dùng tối đa & Sạc lưu trữ</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="btnOpenCustomImgModal" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold text-slate-800 flex items-center gap-1.5 transition" title="Tải ảnh thực tế của Biến tần, Pin lưu trữ hoặc Ngôi nhà từ máy tính">
+                            <span>🖼️ Đổi ảnh thiết bị</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Responsive SVG Schematic Canvas -->
+                <div class="relative w-full bg-slate-900 rounded-xl border border-slate-300 p-2 sm:p-3 overflow-hidden shadow-inner">
+                    <svg id="hybridSchematic" viewBox="0 0 820 530" class="w-full h-auto select-none">
+                        <defs>
+                            <!-- Glow Filters -->
+                            <filter id="glowAmber" x="-20%" y="-20%" width="140%" height="140%">
+                                <feGaussianBlur stdDeviation="3.5" result="blur" />
+                                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                            </filter>
+                            <filter id="glowEmerald" x="-20%" y="-20%" width="140%" height="140%">
+                                <feGaussianBlur stdDeviation="3.5" result="blur" />
+                                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                            </filter>
+                            <filter id="glowSky" x="-20%" y="-20%" width="140%" height="140%">
+                                <feGaussianBlur stdDeviation="3.5" result="blur" />
+                                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                            </filter>
+                            <filter id="glowRose" x="-20%" y="-20%" width="140%" height="140%">
+                                <feGaussianBlur stdDeviation="3.5" result="blur" />
+                                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                            </filter>
+
+                            <!-- Metallic & Housing Gradients -->
+                            <linearGradient id="solisBodyGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#ffffff" />
+                                <stop offset="100%" stop-color="#e2e8f0" />
+                            </linearGradient>
+                            <linearGradient id="solisBatGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#f8fafc" />
+                                <stop offset="100%" stop-color="#cbd5e1" />
+                            </linearGradient>
+                            <linearGradient id="pvPanelGrad" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#1e3a8a" />
+                                <stop offset="50%" stop-color="#1d4ed8" />
+                                <stop offset="100%" stop-color="#0f172a" />
+                            </linearGradient>
+                            <linearGradient id="houseRoomWarm" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#fef08a" stop-opacity="0.32" />
+                                <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.08" />
+                            </linearGradient>
+                            <linearGradient id="carBodyGrad" x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0%" stop-color="#ea580c" />
+                                <stop offset="55%" stop-color="#f97316" />
+                                <stop offset="100%" stop-color="#c2410c" />
+                            </linearGradient>
+
+                            <!-- Clip paths for custom uploaded images -->
+                            <clipPath id="clipInvImg">
+                                <rect x="0" y="0" width="150" height="204" rx="12" />
+                            </clipPath>
+                            <clipPath id="clipBatImg">
+                                <rect x="0" y="0" width="120" height="174" rx="10" />
+                            </clipPath>
+                            <clipPath id="clipHouseImg">
+                                <rect x="12" y="16" width="256" height="360" rx="12" />
+                            </clipPath>
+                        </defs>
+
+                        <!-- Subtle Engineering Grid Background -->
+                        <g stroke="#1e293b" stroke-width="0.75" opacity="0.65">
+                            <line x1="0" y1="132" x2="820" y2="132" />
+                            <line x1="0" y1="265" x2="820" y2="265" />
+                            <line x1="0" y1="398" x2="820" y2="398" />
+                            <line x1="205" y1="0" x2="205" y2="530" />
+                            <line x1="410" y1="0" x2="410" y2="530" />
+                            <line x1="615" y1="0" x2="615" y2="530" />
+                        </g>
+
+                        <!-- ==================== POWER TRANSMISSION WIRES ==================== -->
+                        <!-- Wire 1: Rooftop Solar PV -> Solis Inverter (DC Input) -->
+                        <path d="M 555 88 L 365 88 L 365 162" fill="none" stroke="#1e293b" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+                        <path id="wirePvToInv" d="M 555 88 L 365 88 L 365 162" fill="none" stroke="#fbbf24" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" class="flow-line-forward" filter="url(#glowAmber)" />
+
+                        <!-- Wire 2: EVN Utility Grid <-> Solis Inverter (AC Grid) -->
+                        <path d="M 165 110 L 325 110 L 325 162" fill="none" stroke="#1e293b" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+                        <path id="wireGridToInv" d="M 165 110 L 325 110 L 325 162" fill="none" stroke="#fb7185" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" class="flow-line-forward" filter="url(#glowRose)" />
+
+                        <!-- Wire 3: SolisStorage Battery <-> Solis Inverter (DC Battery Bus) -->
+                        <path d="M 182 365 L 332 365 L 332 350" fill="none" stroke="#1e293b" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+                        <path id="wireInvToBat" d="M 332 350 L 332 365 L 182 365" fill="none" stroke="#34d399" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" class="flow-line-forward" filter="url(#glowEmerald)" />
+
+                        <!-- Wire 4: Solis Inverter -> 3D House & EV Loads (AC Load Output) -->
+                        <path d="M 420 266 L 520 266" fill="none" stroke="#1e293b" stroke-width="7" stroke-linecap="round" />
+                        <path id="wireInvToLoad" d="M 420 266 L 520 266" fill="none" stroke="#38bdf8" stroke-width="3.5" stroke-linecap="round" class="flow-line-forward" filter="url(#glowSky)" />
+
+                        <!-- Floating Power Pills on Wires -->
+                        <!-- PV Pill -->
+                        <g transform="translate(455, 88)">
+                            <rect x="-48" y="-14" width="96" height="28" rx="14" fill="#090d16" stroke="#fbbf24" stroke-width="1.8" />
+                            <text id="pillPvText" x="0" y="4.5" text-anchor="middle" fill="#fde047" font-family="JetBrains Mono" font-size="12.5" font-weight="bold">0.00 kW</text>
+                        </g>
+
+                        <!-- Grid Pill -->
+                        <g transform="translate(245, 110)">
+                            <rect id="pillGridBox" x="-52" y="-14" width="104" height="28" rx="14" fill="#090d16" stroke="#64748b" stroke-width="1.8" />
+                            <text id="pillGridText" x="0" y="4.5" text-anchor="middle" fill="#cbd5e1" font-family="JetBrains Mono" font-size="12" font-weight="bold">0.00 kW</text>
+                        </g>
+
+                        <!-- Battery Pill -->
+                        <g transform="translate(255, 365)">
+                            <rect id="pillBatBox" x="-52" y="-14" width="104" height="28" rx="14" fill="#090d16" stroke="#34d399" stroke-width="1.8" />
+                            <text id="pillBatText" x="0" y="4.5" text-anchor="middle" fill="#6ee7b7" font-family="JetBrains Mono" font-size="12" font-weight="bold">0.00 kW</text>
+                        </g>
+
+                        <!-- Load Pill -->
+                        <g transform="translate(470, 266)">
+                            <rect x="-46" y="-13" width="92" height="26" rx="13" fill="#090d16" stroke="#38bdf8" stroke-width="1.8" />
+                            <text id="pillLoadText" x="0" y="4.5" text-anchor="middle" fill="#7dd3fc" font-family="JetBrains Mono" font-size="12" font-weight="bold">0.00 kW</text>
+                        </g>
+
+                        <!-- ==================== 1. UTILITY GRID TOWER (TOP LEFT) ==================== -->
+                        <g transform="translate(20, 35)">
+                            <rect id="nodeGridCard" width="145" height="150" rx="14" fill="#0f172a" stroke="#334155" stroke-width="2" />
+                            <rect id="nodeGridTopBar" width="145" height="5" rx="2.5" fill="#fb7185" />
+                            
+                            <!-- High-Voltage Transmission Pylon -->
+                            <g transform="translate(48, 14)" stroke="#cbd5e1" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M24 2 L14 54 M24 2 L34 54" />
+                                <path d="M10 14 L38 14 M7 26 L41 26 M12 40 L36 40" />
+                                <path d="M16 14 L32 26 M32 14 L16 26 M14 26 L34 40 M34 26 L14 40" stroke-width="1.2" opacity="0.85"/>
+                                <line x1="10" y1="14" x2="10" y2="19" stroke="#fb7185" stroke-width="2.2"/>
+                                <line x1="38" y1="14" x2="38" y2="19" stroke="#fb7185" stroke-width="2.2"/>
+                                <line x1="7" y1="26" x2="7" y2="31" stroke="#fb7185" stroke-width="2.2"/>
+                                <line x1="41" y1="26" x2="41" y2="31" stroke="#fb7185" stroke-width="2.2"/>
+                            </g>
+
+                            <text x="72.5" y="83" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="700">Lưới Điện EVN</text>
+                            <text id="nodeGridFreq" x="72.5" y="99" text-anchor="middle" fill="#34d399" font-size="11" font-weight="600" font-family="JetBrains Mono">220V • 50Hz</text>
+                            <text id="nodeGridPower" x="72.5" y="122" text-anchor="middle" fill="#fb7185" font-size="18.5" font-weight="bold" font-family="JetBrains Mono">0.00 kW</text>
+                            <text id="nodeGridStatus" x="72.5" y="139" text-anchor="middle" fill="#cbd5e1" font-size="10.5" font-weight="500">Trạng thái: Cân bằng</text>
+                        </g>
+
+                        <!-- ==================== 2. SOLISSTORAGE BATTERY MODULE (BOTTOM LEFT) ==================== -->
+                        <g transform="translate(20, 260)">
+                            <rect width="162" height="255" rx="16" fill="#0f172a" stroke="#334155" stroke-width="2" />
+                            
+                            <g id="defaultBatGraphic" transform="translate(21, 12)">
+                                <rect x="-4" y="52" width="5" height="14" rx="1.5" fill="#94a3b8" />
+                                <rect x="119" y="52" width="5" height="14" rx="1.5" fill="#94a3b8" />
+                                <rect x="18" y="173" width="10" height="4" rx="1" fill="#475569" />
+                                <rect x="92" y="173" width="10" height="4" rx="1" fill="#475569" />
+
+                                <rect x="0" y="0" width="120" height="174" rx="10" fill="url(#solisBatGrad)" stroke="#cbd5e1" stroke-width="1.5" />
+                                <rect x="0" y="24" width="120" height="22" fill="#94a3b8" fill-opacity="0.45" />
+                                
+                                <g transform="translate(13, 35)">
+                                    <circle cx="0" cy="0" r="5.5" fill="none" stroke="#f97316" stroke-width="1.6" />
+                                    <circle cx="0" cy="0" r="2.5" fill="#f97316" />
+                                    <path d="M0 -8 V-6 M0 6 V8 M-8 0 H-6 M6 0 H8 M-5.5 -5.5 L-4 -4 M4 4 L5.5 5.5 M-5.5 5.5 L-4 4 M4 -4 L5.5 -5.5" stroke="#f97316" stroke-width="1.3" />
+                                </g>
+                                <text x="23" y="38.5" fill="#ea580c" font-size="9" font-weight="800">Solis</text>
+                                <text x="45" y="38.5" fill="#1e293b" font-size="9" font-weight="700">Storage</text>
+
+                                <!-- 4 SOC LED Indicators -->
+                                <circle id="batLed1" cx="84" cy="35" r="2" fill="#38bdf8" />
+                                <circle id="batLed2" cx="89.5" cy="35" r="2" fill="#38bdf8" />
+                                <circle id="batLed3" cx="95" cy="35" r="2" fill="#38bdf8" />
+                                <circle id="batLed4" cx="100.5" cy="35" r="2" fill="#cbd5e1" />
+                                <circle id="batRunLed" cx="107" cy="36.5" r="2" fill="#10b981" />
+                                <circle id="batAlmLed" cx="113" cy="36.5" r="2" fill="#94a3b8" />
+
+                                <rect x="10" y="136" width="100" height="27" rx="6" fill="#090d16" fill-opacity="0.92" />
+                                <rect x="15" y="153" width="90" height="5.5" rx="2.75" fill="#1e293b" />
+                                <rect id="batSvgProgress" x="15" y="153" width="55" height="5.5" rx="2.75" fill="#34d399" />
+                                <text id="nodeBatSoc" x="16" y="149" fill="#34d399" font-size="11" font-weight="bold" font-family="JetBrains Mono">60%</text>
+                                <text id="nodeBatPower" x="104" y="149" text-anchor="end" fill="#ffffff" font-size="10.5" font-weight="bold" font-family="JetBrains Mono">0.0 kW</text>
+                            </g>
+
+                            <image id="customBatImage" x="21" y="12" width="120" height="174" preserveAspectRatio="xMidYMid slice" clip-path="url(#clipBatImg)" class="hidden" />
+
+                            <text x="81" y="205" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="700">SolisStorage</text>
+                            <text id="nodeBatCap" x="81" y="222" text-anchor="middle" fill="#34d399" font-size="12" font-weight="bold" font-family="JetBrains Mono">15.0 kWh</text>
+                            <text id="nodeBatStatus" x="81" y="239" text-anchor="middle" fill="#cbd5e1" font-size="10.5" font-weight="500">Chế độ chờ (Standby)</text>
+                        </g>
+
+                        <!-- ==================== 3. SOLIS HYBRID INVERTER (CENTER) ==================== -->
+                        <g transform="translate(270, 152)">
+                            <rect x="-10" y="-10" width="170" height="240" rx="20" fill="#0f172a" stroke="#334155" stroke-width="2" />
+
+                            <g id="defaultInvGraphic">
+                                <!-- Left Side DC Isolator Switch -->
+                                <rect x="-8" y="142" width="8" height="20" rx="2" fill="#1e293b" />
+                                <path d="M-8 147 L-13 151 L-13 161 L-8 161 Z" fill="#0f172a" />
+
+                                <!-- Bottom Cable Glands & WiFi Data Logger Stick -->
+                                <rect x="14" y="198" width="14" height="10" rx="2" fill="#1e293b" />
+                                <rect x="34" y="198" width="14" height="10" rx="2" fill="#1e293b" />
+                                <rect x="54" y="198" width="14" height="10" rx="2" fill="#1e293b" />
+                                <rect x="104" y="198" width="14" height="10" rx="2" fill="#1e293b" />
+                                <rect x="122" y="198" width="14" height="10" rx="2" fill="#1e293b" />
+                                <!-- WiFi Stick -->
+                                <rect x="78" y="198" width="16" height="26" rx="5" fill="#1e293b" stroke="#475569" stroke-width="1" />
+                                <circle cx="86" cy="206" r="1.5" fill="#ef4444" />
+                                <circle cx="86" cy="211" r="1.5" fill="#eab308" />
+                                <circle cx="86" cy="216" r="1.5" fill="#22c55e" />
+
+                                <!-- White Solis Chassis -->
+                                <rect x="0" y="0" width="150" height="198" rx="12" fill="url(#solisBodyGrad)" stroke="#cbd5e1" stroke-width="1.5" />
+                                <!-- Horizontal Seam Line -->
+                                <line x1="0" y1="138" x2="150" y2="138" stroke="#94a3b8" stroke-width="1.2" />
+                                <circle cx="8" cy="145" r="2.2" fill="#94a3b8" />
+                                <circle cx="142" cy="145" r="2.2" fill="#94a3b8" />
+                                <circle cx="8" cy="190" r="2.2" fill="#94a3b8" />
+                                <circle cx="142" cy="190" r="2.2" fill="#94a3b8" />
+
+                                <!-- Solis Orange Sunburst Logo -->
+                                <g transform="translate(24, 20)">
+                                    <circle cx="0" cy="0" r="6" fill="none" stroke="#f97316" stroke-width="1.8" />
+                                    <circle cx="0" cy="0" r="2.8" fill="#f97316" />
+                                    <path d="M0 -9 V-7 M0 7 V9 M-9 0 H-7 M7 0 H9 M-6.5 -6.5 L-4.8 -4.8 M4.8 4.8 L6.5 6.5 M-6.5 6.5 L-4.8 4.8 M4.8 -4.8 L6.5 -6.5" stroke="#f97316" stroke-width="1.4" />
+                                </g>
+                                <text x="35" y="24.5" fill="#f97316" font-size="14" font-weight="800" letter-spacing="-0.5">solis</text>
+
+                                <!-- Grey Control Panel Bezel -->
+                                <rect x="20" y="34" width="110" height="92" rx="8" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="1" />
+
+                                <!-- 3 Status LEDs (POWER, OPERATION, ALARM) -->
+                                <circle cx="43" cy="42" r="2.3" fill="#ef4444" />
+                                <text x="43" y="49" text-anchor="middle" fill="#475569" font-size="5" font-weight="700">POWER</text>
+
+                                <circle id="invOpLed" cx="75" cy="42" r="2.3" fill="#22c55e" />
+                                <text x="75" y="49" text-anchor="middle" fill="#475569" font-size="5" font-weight="700">OPERATION</text>
+
+                                <circle id="invAlarmLed" cx="107" cy="42" r="2.3" fill="#94a3b8" />
+                                <text x="107" y="49" text-anchor="middle" fill="#475569" font-size="5" font-weight="700">ALARM</text>
+
+                                <!-- LCD Screen -->
+                                <rect x="28" y="53" width="94" height="53" rx="3" fill="#f8fafc" stroke="#94a3b8" stroke-width="1" />
+                                <rect x="28" y="53" width="94" height="8" rx="1" fill="#1d4ed8" />
+                                <text x="31" y="59" fill="#ffffff" font-size="4.8" font-weight="700">Devices Status</text>
+                                <text x="119" y="59" text-anchor="end" fill="#dbeafe" font-size="4.5" font-family="JetBrains Mono">SOLIS-HYB</text>
+
+                                <!-- Mini Schematic inside LCD -->
+                                <rect x="33" y="65" width="12" height="8" rx="1" fill="#3b82f6" />
+                                <line x1="46" y1="69" x2="66" y2="69" stroke="#f59e0b" stroke-width="1.2" />
+                                <rect x="35" y="88" width="8" height="12" rx="1" fill="#10b981" />
+                                <line x1="44" y1="94" x2="66" y2="94" stroke="#10b981" stroke-width="1.2" />
+                                <rect x="67" y="70" width="16" height="26" rx="2" fill="#e2e8f0" stroke="#64748b" stroke-width="1" />
+                                <line x1="84" y1="76" x2="103" y2="76" stroke="#0284c7" stroke-width="1.2" />
+                                <polygon points="109,68 103,73 115,73" fill="#f97316" />
+                                <rect x="105" y="73" width="8" height="7" fill="#cbd5e1" />
+                                <line x1="84" y1="92" x2="105" y2="92" stroke="#e11d48" stroke-width="1.2" />
+                                <path d="M111 86 V100 M107 90 H115 M108 94 H114" stroke="#334155" stroke-width="1" />
+
+                                <!-- 4 Tactile Buttons (ESC, UP, DOWN, ENTER) -->
+                                <circle cx="40" cy="114" r="3" fill="#cbd5e1" stroke="#64748b" stroke-width="0.8" />
+                                <text x="40" y="122" text-anchor="middle" fill="#334155" font-size="4.8" font-weight="700">ESC</text>
+
+                                <circle cx="63" cy="114" r="3" fill="#cbd5e1" stroke="#64748b" stroke-width="0.8" />
+                                <text x="63" y="122" text-anchor="middle" fill="#334155" font-size="4.8" font-weight="700">UP</text>
+
+                                <circle cx="87" cy="114" r="3" fill="#cbd5e1" stroke="#64748b" stroke-width="0.8" />
+                                <text x="87" y="122" text-anchor="middle" fill="#334155" font-size="4.8" font-weight="700">DOWN</text>
+
+                                <circle cx="110" cy="114" r="3" fill="#cbd5e1" stroke="#64748b" stroke-width="0.8" />
+                                <text x="110" y="122" text-anchor="middle" fill="#334155" font-size="4.8" font-weight="700">ENTER</text>
+
+                                <!-- Bottom Wiring Cover Label -->
+                                <rect x="14" y="149" width="122" height="38" rx="6" fill="#090d16" />
+                                <text x="75" y="164" text-anchor="middle" fill="#7dd3fc" font-size="9.5" font-weight="800">HYBRID INVERTER</text>
+                                <text id="invThroughputBadge" x="75" y="180" text-anchor="middle" fill="#ffffff" font-size="11" font-family="JetBrains Mono" font-weight="bold">Công suất: 0.00 kW</text>
+                            </g>
+
+                            <image id="customInvImage" x="0" y="0" width="150" height="204" preserveAspectRatio="xMidYMid slice" clip-path="url(#clipInvImg)" class="hidden" />
+                        </g>
+
+                        <!-- ==================== 4. 3D CUTAWAY HOUSE + ROOFTOP PV + EV CHARGER (RIGHT) ==================== -->
+                        <g transform="translate(520, 22)">
+                            <rect width="280" height="493" rx="16" fill="#0f172a" stroke="#334155" stroke-width="2" />
+
+                            <g id="defaultHouseGraphic">
+                                <!-- House Base Shadow -->
+                                <ellipse cx="142" cy="368" rx="125" ry="12" fill="#020617" opacity="0.75" />
+
+                                <!-- Left Garage / Side Wall -->
+                                <polygon points="36,130 92,52 92,358 36,358" fill="#cbd5e1" />
+                                <polygon points="36,130 92,52 98,56 42,134" fill="#334155" />
+
+                                <!-- Main Pitched Roof with Solar PV Array -->
+                                <polygon points="92,52 246,52 268,112 114,112" fill="#1e293b" stroke="#475569" stroke-width="1.5" />
+
+                                <!-- Rooftop PV Modules -->
+                                <g transform="translate(106, 58) skewX(18)">
+                                    <rect x="0" y="0" width="142" height="46" rx="3" fill="url(#pvPanelGrad)" stroke="#93c5fd" stroke-width="1.5" />
+                                    <line x1="23.6" y1="0" x2="23.6" y2="46" stroke="#60a5fa" stroke-width="1.2" />
+                                    <line x1="47.2" y1="0" x2="47.2" y2="46" stroke="#60a5fa" stroke-width="1.2" />
+                                    <line x1="71" y1="0" x2="71" y2="46" stroke="#60a5fa" stroke-width="1.2" />
+                                    <line x1="94.6" y1="0" x2="94.6" y2="46" stroke="#60a5fa" stroke-width="1.2" />
+                                    <line x1="118.2" y1="0" x2="118.2" y2="46" stroke="#60a5fa" stroke-width="1.2" />
+                                    <line x1="0" y1="15" x2="142" y2="15" stroke="#3b82f6" stroke-width="0.7" opacity="0.7" />
+                                    <line x1="0" y1="31" x2="142" y2="31" stroke="#3b82f6" stroke-width="0.7" opacity="0.7" />
+                                </g>
+
+                                <!-- PV Telemetry Badge on Roof -->
+                                <g transform="translate(140, 18)">
+                                    <rect x="-86" y="-11" width="172" height="22" rx="11" fill="#090d16" fill-opacity="0.94" stroke="#fbbf24" stroke-width="1.4" />
+                                    <text id="nodePvBadgeHouse" x="0" y="4" text-anchor="middle" fill="#fde047" font-size="10.5" font-weight="bold" font-family="JetBrains Mono">PV: 0.00 kW (10.0 kWp)</text>
+                                </g>
+
+                                <!-- 3-Story Cutaway Interior -->
+                                <rect x="114" y="112" width="146" height="246" fill="#1e293b" stroke="#64748b" stroke-width="1.5" />
+                                <rect id="houseInteriorGlow" x="114" y="112" width="146" height="246" fill="url(#houseRoomWarm)" />
+
+                                <!-- Floor Dividers -->
+                                <rect x="114" y="190" width="146" height="6" fill="#475569" />
+                                <rect x="114" y="272" width="146" height="6" fill="#475569" />
+
+                                <!-- FLOOR 3 (TOP): Home Office -->
+                                <rect x="135" y="162" width="38" height="4" fill="#94a3b8" />
+                                <line x1="140" y1="166" x2="140" y2="188" stroke="#94a3b8" stroke-width="2" />
+                                <line x1="168" y1="166" x2="168" y2="188" stroke="#94a3b8" stroke-width="2" />
+                                <rect x="145" y="143" width="22" height="15" rx="2" fill="#0f172a" stroke="#38bdf8" stroke-width="1.2" />
+                                <rect x="153" y="158" width="6" height="4" fill="#64748b" />
+                                <rect x="218" y="138" width="26" height="50" rx="2" fill="#cbd5e1" stroke="#64748b" stroke-width="1" />
+                                <line x1="218" y1="158" x2="244" y2="158" stroke="#64748b" stroke-width="1" />
+                                <ellipse cx="185" cy="116" rx="16" ry="3.5" fill="#fde047" opacity="0.85" />
+                                <text x="185" y="130" text-anchor="middle" fill="#f1f5f9" font-size="9.5" font-weight="600">Phòng làm việc</text>
+
+                                <!-- FLOOR 2 (MIDDLE): Living Room TV & Air Conditioner -->
+                                <rect x="195" y="202" width="46" height="12" rx="3" fill="#f8fafc" stroke="#94a3b8" stroke-width="1" />
+                                <line x1="200" y1="211" x2="236" y2="211" stroke="#38bdf8" stroke-width="1.5" />
+                                <rect x="196" y="228" width="42" height="24" rx="2" fill="#090d16" stroke="#475569" stroke-width="1.2" />
+                                <rect x="192" y="254" width="50" height="16" rx="2" fill="#94a3b8" />
+                                <text x="152" y="235" text-anchor="middle" fill="#f1f5f9" font-size="9.5" font-weight="600">Phòng khách</text>
+                                <text x="152" y="248" text-anchor="middle" fill="#cbd5e1" font-size="8.5">Điều hòa & TV</text>
+
+                                <!-- FLOOR 1 (UTILITY): Washing Machine & Water Heater -->
+                                <rect x="122" y="314" width="28" height="42" rx="3" fill="#f8fafc" stroke="#94a3b8" stroke-width="1" />
+                                <circle cx="136" cy="336" r="8" fill="#334155" stroke="#64748b" stroke-width="1.5" />
+                                <rect x="155" y="314" width="26" height="42" rx="3" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1" />
+                                <rect x="188" y="308" width="22" height="48" rx="9" fill="#cbd5e1" stroke="#64748b" stroke-width="1" />
+                                <rect x="216" y="312" width="34" height="44" rx="3" fill="#94a3b8" />
+
+                                <!-- Internal Red Power Bus Lines -->
+                                <path d="M 114 266 L 245 266 M 136 266 L 136 314 M 199 266 L 199 308 M 217 252 L 217 266" fill="none" stroke="#ef4444" stroke-width="2" opacity="0.85" />
+
+                                <!-- EV Wallbox Charger & Orange Electric Vehicle -->
+                                <rect x="20" y="282" width="12" height="26" rx="2" fill="#f8fafc" stroke="#64748b" stroke-width="1" />
+                                <rect x="23" y="286" width="6" height="8" rx="1" fill="#38bdf8" />
+                                <path d="M 26 308 Q 26 334 38 334" fill="none" stroke="#38bdf8" stroke-width="2" />
+
+                                <g transform="translate(22, 314)">
+                                    <path d="M 12 28 L 24 12 Q 45 6 72 12 L 94 24 Q 102 27 102 36 L 102 42 L 6 42 L 6 33 Q 6 29 12 28 Z" fill="url(#carBodyGrad)" stroke="#fdba74" stroke-width="1" />
+                                    <path d="M 28 14 Q 46 10 66 14 L 78 24 L 24 24 Z" fill="#0f172a" />
+                                    <circle cx="26" cy="42" r="9.5" fill="#0f172a" stroke="#cbd5e1" stroke-width="2" />
+                                    <circle cx="26" cy="42" r="4" fill="#94a3b8" />
+                                    <circle cx="82" cy="42" r="9.5" fill="#0f172a" stroke="#cbd5e1" stroke-width="2" />
+                                    <circle cx="82" cy="42" r="4" fill="#94a3b8" />
+                                    <ellipse cx="99" cy="31" rx="3" ry="2" fill="#fef08a" />
+                                </g>
+                            </g>
+
+                            <image id="customHouseImage" x="12" y="16" width="256" height="360" preserveAspectRatio="xMidYMid slice" clip-path="url(#clipHouseImg)" class="hidden" />
+
+                            <!-- Load Telemetry Footer Panel -->
+                            <rect x="12" y="388" width="256" height="92" rx="12" fill="#090d16" stroke="#334155" stroke-width="1.5" />
+                            <text x="24" y="408" fill="#cbd5e1" font-size="11" font-weight="700">TỔNG TẢI TIÊU THỤ NHÀ & SẠC EV</text>
+                            <text id="nodeLoadPower" x="24" y="437" fill="#38bdf8" font-size="24" font-weight="bold" font-family="JetBrains Mono">0.00 kW</text>
+                            <text id="nodeLoadSource" x="24" y="456" fill="#34d399" font-size="11" font-weight="600">Nguồn cấp: 100% Ổn định</text>
+                            <text id="nodeLoadDaily" x="24" y="472" fill="#94a3b8" font-size="10.5" font-weight="500" font-family="JetBrains Mono">Ngày: 0.0 kWh • Đêm: 0.0 kWh</text>
+                            <text id="nodePvSub" x="256" y="472" text-anchor="end" fill="#fde047" font-size="10" font-weight="600" font-family="JetBrains Mono">Bức xạ: 0%</text>
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Interactive Timeline Scrubber -->
+                <div class="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+                    <div class="flex items-center justify-between text-xs mb-1.5">
+                        <span class="text-slate-700 font-bold">Thanh tua thời gian trong ngày (00:00 - 23:00)</span>
+                        <span id="valHour" class="font-mono font-bold text-amber-600 text-sm">12:00</span>
+                    </div>
+                    <input id="sliderHour" type="range" min="0" max="23" step="1" value="12" class="w-full">
+                    <div class="flex justify-between text-[11px] font-mono font-medium text-slate-500 mt-1">
+                        <span>00:00 (Đêm)</span>
+                        <span>06:00 (Bắt đầu ngày)</span>
+                        <span>12:00 (Đỉnh nắng)</span>
+                        <span>18:00 (Bắt đầu đêm)</span>
+                        <span>23:00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Interactive Configuration & Simulation Controls -->
+            <div class="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-sm space-y-4">
+                <div>
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+                        <h2 class="text-sm sm:text-base font-extrabold text-slate-900">Thông Số Cấu Hình Hệ Thống</h2>
+                        <button id="btnResetDefaults" class="text-xs text-sky-600 hover:text-sky-500 font-bold transition">Đặt lại mặc định</button>
+                    </div>
+
+                    <div class="space-y-4 mt-4">
+                        <!-- 1. PV Capacity Slider + Direct Numeric Input -->
+                        <div>
+                            <div class="flex items-center justify-between text-xs mb-1.5">
+                                <label for="sliderPvCap" class="font-bold text-slate-800">1. Công suất dàn pin PV lắp đặt</label>
+                                <div class="flex items-center gap-1 bg-amber-50 border border-amber-300 rounded-lg px-2 py-0.5 shadow-sm">
+                                    <input id="inputPvCap" type="number" min="0" max="500" step="0.01" value="10.00" class="w-16 bg-transparent font-mono text-sm font-extrabold text-amber-700 text-right focus:outline-none">
+                                    <span class="text-xs font-bold text-amber-800">kWp</span>
+                                </div>
+                            </div>
+                            <input id="sliderPvCap" type="range" min="1" max="50" step="0.05" value="10.00" class="w-full">
+                            <div class="flex justify-between text-[11px] text-slate-500 font-medium mt-0.5">
+                                <span>1.00 kWp</span>
+                                <span>25.00 kWp</span>
+                                <span>50.00 kWp (nhập lẻ 0,01)</span>
+                            </div>
+                        </div>
+
+                        <!-- 2. Battery Storage Capacity Slider + Direct Numeric Input -->
+                        <div>
+                            <div class="flex items-center justify-between text-xs mb-1.5">
+                                <label for="sliderBatCap" class="font-bold text-slate-800">2. Dung lượng Pin lưu trữ (Lithium)</label>
+                                <div class="flex items-center gap-1 bg-emerald-50 border border-emerald-300 rounded-lg px-2 py-0.5 shadow-sm">
+                                    <input id="inputBatCap" type="number" min="0" max="1000" step="0.01" value="15.00" class="w-16 bg-transparent font-mono text-sm font-extrabold text-emerald-700 text-right focus:outline-none">
+                                    <span class="text-xs font-bold text-emerald-800">kWh</span>
+                                </div>
+                            </div>
+                            <input id="sliderBatCap" type="range" min="0" max="60" step="0.05" value="15.00" class="w-full">
+                            <div class="flex justify-between text-[11px] text-slate-500 font-medium mt-0.5">
+                                <span>0.00 kWh</span>
+                                <span>30.00 kWh</span>
+                                <span>60.00 kWh (nhập lẻ 0,01)</span>
+                            </div>
+                        </div>
+
+                        <!-- 3. Total Daily Load Consumption (Slider + Direct Numeric Input) -->
+                        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-3">
+                            <div>
+                                <div class="flex items-center justify-between text-xs mb-1.5">
+                                    <label for="sliderLoadDaily" class="font-bold text-slate-800">3. Tổng tải tiêu thụ / Ngày (kWh)</label>
+                                    <div class="flex items-center gap-1 bg-white border border-sky-300 rounded-lg px-2 py-0.5 shadow-sm">
+                                        <input id="inputLoadDaily" type="number" min="0" max="500" step="0.01" value="35.00" class="w-16 font-mono text-sm font-bold text-sky-700 text-right focus:outline-none">
+                                        <span class="text-xs font-bold text-slate-600">kWh/ngày</span>
+                                    </div>
+                                </div>
+                                <input id="sliderLoadDaily" type="range" min="5" max="150" step="0.1" value="35.00" class="w-full">
+                                <div class="flex justify-between text-[11px] text-slate-500 font-medium mt-0.5">
+                                    <span>5.00 kWh/ngày</span>
+                                    <span>75.00 kWh/ngày</span>
+                                    <span>150.00 kWh/ngày</span>
+                                </div>
+                            </div>
+
+                            <!-- 4. Day / Night Usage Percentage Split -->
+                            <div class="pt-2.5 border-t border-slate-200">
+                                <div class="flex items-center justify-between text-xs mb-1.5">
+                                    <span class="font-bold text-slate-800">4. Tỷ lệ sử dụng Ban ngày / Ban đêm</span>
+                                    <span class="text-[11px] font-semibold text-slate-500">Tổng = 100.00%</span>
+                                </div>
+
+                                <input id="sliderDayRatio" type="range" min="0" max="100" step="0.1" value="60.00" class="w-full day-night-slider mb-2">
+
+                                <div class="grid grid-cols-2 gap-2">
+                                    <!-- Day Box (06:00 - 18:00) -->
+                                    <div class="bg-amber-50 border border-amber-200 rounded-lg p-2">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-[11px] font-bold text-amber-900">☀️ Ban ngày (06h-18h)</span>
+                                            <div class="flex items-center gap-0.5 bg-white border border-amber-300 rounded px-1.5 py-0.5">
+                                                <input id="inputDayPct" type="number" min="0" max="100" step="0.01" value="60.00" class="w-12 font-mono text-xs font-extrabold text-amber-700 text-right focus:outline-none">
+                                                <span class="text-[11px] font-bold text-amber-800">%</span>
+                                            </div>
+                                        </div>
+                                        <div id="valDayKwh" class="font-mono text-sm font-extrabold text-amber-700 mt-1">21.00 kWh</div>
+                                    </div>
+
+                                    <!-- Night Box (18:00 - 06:00) -->
+                                    <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-2">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-[11px] font-bold text-indigo-900">🌙 Ban đêm (18h-06h)</span>
+                                            <div class="flex items-center gap-0.5 bg-white border border-indigo-300 rounded px-1.5 py-0.5">
+                                                <input id="inputNightPct" type="number" min="0" max="100" step="0.01" value="40.00" class="w-12 font-mono text-xs font-extrabold text-indigo-700 text-right focus:outline-none">
+                                                <span class="text-[11px] font-bold text-indigo-800">%</span>
+                                            </div>
+                                        </div>
+                                        <div id="valNightKwh" class="font-mono text-sm font-extrabold text-indigo-700 mt-1">14.00 kWh</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 5. Weather Condition Buttons -->
+                        <div>
+                            <label class="block text-xs font-bold text-slate-800 mb-1.5">5. Điều kiện thời tiết (Chuẩn 4,5 giờ nắng/ngày)</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button data-weather="1.0" class="weather-btn active py-2 px-2 rounded-xl border border-amber-500 bg-amber-50 text-amber-800 text-xs font-bold flex flex-col items-center gap-0.5 transition shadow-sm">
+                                    <span>☀️ Nắng đẹp</span>
+                                    <span class="font-mono text-[11px] text-amber-700">4,50h nắng</span>
+                                </button>
+                                <button data-weather="0.65" class="weather-btn py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-xs font-bold flex flex-col items-center gap-0.5 transition">
+                                    <span>⛅ Mây rải rác</span>
+                                    <span class="font-mono text-[11px] text-slate-500">2,93h nắng</span>
+                                </button>
+                                <button data-weather="0.30" class="weather-btn py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-xs font-bold flex flex-col items-center gap-0.5 transition">
+                                    <span>🌧️ Mưa / Âm u</span>
+                                    <span class="font-mono text-[11px] text-slate-500">1,35h nắng</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 6. Operating Mode Selector -->
+                        <div>
+                            <label class="block text-xs font-bold text-slate-800 mb-1.5">6. Chế độ vận hành Hybrid Inverter</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button data-mode="zero_export" class="mode-btn py-2 px-3 rounded-xl border border-sky-600 bg-sky-50 text-sky-900 text-xs font-semibold text-left transition shadow-sm">
+                                    <div class="font-bold">Bám tải (Zero-Export)</div>
+                                    <div class="text-[11px] text-sky-700 mt-0.5">Không đẩy điện dư lên lưới</div>
+                                </button>
+                                <button data-mode="feed_in" class="mode-btn py-2 px-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-xs font-semibold text-left transition">
+                                    <div class="font-bold">Tự dùng + Bán lưới</div>
+                                    <div class="text-[11px] text-slate-500 mt-0.5">Phát điện dư lên lưới EVN</div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 7. Grid Outage (Backup EPS) Toggle -->
+                <div class="pt-3 border-t border-slate-200">
+                    <button id="btnToggleOutage" class="w-full py-2.5 px-4 rounded-xl border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs sm:text-sm flex items-center justify-between transition">
+                        <span class="flex items-center gap-2">
+                            <span>⚡ Giả lập Mất điện lưới (Backup EPS)</span>
+                        </span>
+                        <span id="outageSwitchBadge" class="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-slate-200 text-slate-700">TẮT</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Daily KPI Summary Cards (4 Columns) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- KPI 1: Total Solar Generation -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 flex items-start justify-between shadow-sm">
+                <div>
+                    <p class="text-xs font-bold text-slate-600">Sản lượng PV tạo ra / ngày</p>
+                    <h3 id="kpiPvTotal" class="text-2xl font-extrabold font-mono text-amber-600 mt-1">0.00 kWh</h3>
+                    <p id="kpiPvFormula" class="text-[11.5px] text-amber-800 font-semibold mt-1">10.00 kWp × 4,50h nắng/ngày</p>
+                    <p id="kpiPvCurtailed" class="text-[11px] text-slate-500 mt-0.5">Phát thực tế: 0.00 kWh</p>
+                </div>
+                <div class="p-2.5 rounded-xl bg-amber-100 text-amber-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+                    </svg>
+                </div>
+            </div>
+
+            <!-- KPI 2: Total Load Consumption (Day + Night Breakdown) -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 flex items-start justify-between shadow-sm">
+                <div>
+                    <p class="text-xs font-bold text-slate-600">Tổng tải tiêu thụ / ngày</p>
+                    <h3 id="kpiLoadTotal" class="text-2xl font-extrabold font-mono text-sky-600 mt-1">35.00 kWh</h3>
+                    <p id="kpiLoadSplit" class="text-[11.5px] font-semibold text-slate-700 mt-1">Ngày: 21.00 kWh (60.00%) • Đêm: 14.00 kWh (40.00%)</p>
+                    <p id="kpiGridImport" class="text-[11px] text-rose-600 font-semibold mt-0.5">Tổng mua lưới cả ngày: 0.00 kWh</p>
+                </div>
+                <div class="p-2.5 rounded-xl bg-sky-100 text-sky-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                    </svg>
+                </div>
+            </div>
+
+            <!-- KPI 3: Nighttime Energy Balance (Battery vs Grid Makeup) -->
+            <div class="bg-indigo-950 text-white border border-indigo-800 rounded-2xl p-4 flex items-start justify-between shadow-md">
+                <div>
+                    <p class="text-xs font-bold text-indigo-200 flex items-center gap-1">
+                        <span>🌙 Cân Bằng Điện Ban Đêm (18h-06h)</span>
+                    </p>
+                    <div class="mt-1 flex items-baseline gap-2">
+                        <span class="text-xs text-indigo-300">Lưới bù đêm:</span>
+                        <h3 id="kpiNightGridImport" class="text-2xl font-extrabold font-mono text-rose-400">0.00 kWh</h3>
+                    </div>
+                    <p id="kpiNightBatDischarge" class="text-[11.5px] text-emerald-300 font-semibold mt-1">Pin lưu trữ xả cấp đêm: 0.00 kWh</p>
+                    <p id="kpiNightGridCost" class="text-[11px] text-indigo-200 font-mono mt-0.5">Tiền điện mua bù đêm: 0 đ</p>
+                </div>
+                <div class="p-2.5 rounded-xl bg-indigo-900 text-indigo-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+                    </svg>
+                </div>
+            </div>
+
+            <!-- KPI 4: Daily & Monthly Savings -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 flex items-start justify-between shadow-sm">
+                <div>
+                    <p class="text-xs font-bold text-slate-600">Tiết kiệm tiền điện hôm nay</p>
+                    <h3 id="kpiDailySavings" class="text-2xl font-extrabold font-mono text-emerald-600 mt-1">0 đ</h3>
+                    <p class="text-[11px] font-mono text-slate-600 font-semibold mt-1">Đơn giá: 3.460 × 1,08 = 3.736,8 đ/kWh</p>
+                    <p id="kpiMonthlySavings" class="text-[11.5px] text-emerald-700 font-bold mt-0.5">Ước tính tháng: 0 đ</p>
+                </div>
+                <div class="p-2.5 rounded-xl bg-emerald-100 text-emerald-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Day vs Night Energy Balance Strip -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <h3 class="text-sm sm:text-base font-extrabold text-slate-900">Bảng Cân Bằng Năng Lượng Chi Tiết: Ban Ngày vs Ban Đêm</h3>
+                <span id="kpiSelfSufficiencyBadge" class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono text-xs font-bold">Tỷ lệ tự chủ năng lượng: 0.00%</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Daytime Summary Card -->
+                <div class="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 space-y-2">
+                    <div class="flex items-center justify-between border-b border-amber-200 pb-2">
+                        <span class="text-xs font-extrabold text-amber-900">☀️ KHUNG BAN NGÀY (06:00 – 18:00)</span>
+                        <span id="stripDayRatio" class="font-mono text-xs font-bold text-amber-700">60.00% tổng tải</span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                            <div class="text-slate-600">Tải ban ngày</div>
+                            <div id="stripDayLoad" class="font-mono font-extrabold text-slate-900 text-sm mt-0.5">21.00 kWh</div>
+                        </div>
+                        <div>
+                            <div class="text-slate-600">PV sạc vào Pin</div>
+                            <div id="stripDayBatCharge" class="font-mono font-extrabold text-emerald-700 text-sm mt-0.5">0.00 kWh</div>
+                        </div>
+                        <div>
+                            <div class="text-slate-600">Lưới bù ban ngày</div>
+                            <div id="stripDayGridImport" class="font-mono font-extrabold text-rose-600 text-sm mt-0.5">0.00 kWh</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Nighttime Summary Card -->
+                <div class="bg-indigo-50/80 border border-indigo-200 rounded-xl p-3.5 space-y-2">
+                    <div class="flex items-center justify-between border-b border-indigo-200 pb-2">
+                        <span class="text-xs font-extrabold text-indigo-950">🌙 KHUNG BAN ĐÊM (18:00 – 06:00)</span>
+                        <span id="stripNightRatio" class="font-mono text-xs font-bold text-indigo-700">40.00% tổng tải</span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                            <div class="text-slate-600">Tải ban đêm</div>
+                            <div id="stripNightLoad" class="font-mono font-extrabold text-slate-900 text-sm mt-0.5">14.00 kWh</div>
+                        </div>
+                        <div>
+                            <div class="text-slate-600">Pin xả cấp đêm</div>
+                            <div id="stripNightBatDischarge" class="font-mono font-extrabold text-emerald-700 text-sm mt-0.5">0.00 kWh</div>
+                        </div>
+                        <div>
+                            <div class="text-slate-600">Lưới bù ban đêm</div>
+                            <div id="stripNightGridImport" class="font-mono font-extrabold text-rose-600 text-sm mt-0.5">0.00 kWh</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 24-Hour Analytics Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- Chart 1: 24h Power & SOC Profile -->
+            <div class="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                    <div>
+                        <h3 class="text-sm sm:text-base font-extrabold text-slate-900">Biểu đồ Phân Bổ Công Suất & Mức Pin (24 Giờ)</h3>
+                        <p class="text-xs text-slate-600">Đường nét đứt thẳng đứng hiển thị khung giờ đang mô phỏng</p>
+                    </div>
+                </div>
+                <div class="relative h-72 sm:h-80 w-full">
+                    <canvas id="powerChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 2: 24h Cashflow / Savings Profile -->
+            <div class="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm flex flex-col justify-between">
+                <div>
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div>
+                            <h3 class="text-sm sm:text-base font-extrabold text-slate-900">Dòng Tiền Tiết Kiệm & Chi Phí Điện</h3>
+                            <p class="text-xs text-slate-600">Đơn giá: <span class="font-mono font-bold text-emerald-700">3.460 × 1,08 = 3.736,8 đ/kWh</span></p>
+                        </div>
+                        <div class="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-300">
+                            <span class="text-[11px] font-semibold text-slate-600">Giá gốc:</span>
+                            <input id="inputTariff" type="number" value="3460" step="10" min="1000" max="6000" class="w-16 bg-transparent font-mono text-xs font-extrabold text-emerald-700 text-right focus:outline-none">
+                            <span class="text-[11px] font-semibold text-slate-600">× 1,08</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="relative h-64 sm:h-72 w-full">
+                    <canvas id="financeChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Custom Equipment Image Upload Modal -->
+    <div id="customImgModal" class="hidden fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h3 class="text-base font-extrabold text-slate-900">🖼️ Tùy Chỉnh Hình Ảnh Thiết Bị</h3>
+                <button id="btnCloseCustomImgModal" class="text-slate-500 hover:text-slate-900 text-lg font-bold px-2">✕</button>
+            </div>
+            <p class="text-xs text-slate-600 leading-relaxed">
+                Chọn file ảnh từ máy tính để thay thế trực tiếp hình ảnh minh họa của <strong>Biến tần Hybrid</strong>, <strong>Pin lưu trữ</strong> hoặc <strong>Ngôi nhà & Tải</strong> trên sơ đồ.
+            </p>
+            <div class="space-y-3">
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <div class="text-xs font-bold text-slate-900">1. Biến tần Hybrid (Inverter)</div>
+                        <div class="text-[11px] text-slate-500">Mặc định: Solis Hybrid trắng</div>
+                    </div>
+                    <label class="px-3 py-1.5 rounded-lg bg-sky-100 hover:bg-sky-200 border border-sky-300 text-sky-800 text-xs font-bold cursor-pointer transition">
+                        Chọn ảnh
+                        <input type="file" accept="image/*" id="uploadInvFile" class="hidden">
+                    </label>
+                </div>
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <div class="text-xs font-bold text-slate-900">2. Pin lưu trữ (Battery)</div>
+                        <div class="text-[11px] text-slate-500">Mặc định: Tủ pin SolisStorage</div>
+                    </div>
+                    <label class="px-3 py-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 text-emerald-800 text-xs font-bold cursor-pointer transition">
+                        Chọn ảnh
+                        <input type="file" accept="image/*" id="uploadBatFile" class="hidden">
+                    </label>
+                </div>
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <div class="text-xs font-bold text-slate-900">3. Ngôi nhà & Tải tiêu thụ</div>
+                        <div class="text-[11px] text-slate-500">Mặc định: Ngôi nhà 3D mặt cắt</div>
+                    </div>
+                    <label class="px-3 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-800 text-xs font-bold cursor-pointer transition">
+                        Chọn ảnh
+                        <input type="file" accept="image/*" id="uploadHouseFile" class="hidden">
+                    </label>
+                </div>
+            </div>
+            <div class="flex items-center justify-between pt-2 border-t border-slate-200">
+                <button id="btnResetCustomImages" class="text-xs text-rose-600 hover:text-rose-500 font-bold">Khôi phục ảnh mặc định</button>
+                <button id="btnDoneCustomImgModal" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition">Hoàn tất</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulation Engine & UI Controller -->
+    <script>
+        // --- System State & Parameters ---
+        const state = {
+            hour: 12,               // Giờ mô phỏng hiện tại (0..23)
+            pvCap: 10.0,            // Công suất dàn pin PV (kWp)
+            batCap: 15.0,           // Dung lượng pin lưu trữ (kWh)
+            loadDaily: 35.0,        // Tổng tải tiêu thụ/ngày (kWh)
+            dayLoadPct: 60,         // Tỷ lệ tiêu thụ Ban ngày 06:00 - 18:00 (%)
+            weatherFactor: 1.0,     // 1.0 (Nắng đẹp = 4.5h), 0.65 (Mây rải rác), 0.30 (Mưa/âm u)
+            peakSunHours: 4.5,      // Chuẩn 4,5 giờ nắng/ngày khi nắng đẹp
+            mode: 'zero_export',    // 'zero_export' hoặc 'feed_in'
+            isGridOutage: false,    // Giả lập mất điện lưới
+            baseTariff: 3460,       // Đơn giá cơ sở 3.460 VNĐ/kWh
+            vatMultiplier: 1.08,    // VAT 8% -> 3.460 * 1.08 = 3.736,8 VNĐ/kWh
+            isPlaying: true,        // Tự động chạy vòng lặp 24h
+            playSpeed: 1,           // 1x, 2x, 5x
+            minSoc: 10.0,           // SOC tối thiểu cho phép (DOD 90%)
+            maxSoc: 100.0,          // SOC tối đa
+            roundTripEff: 0.96,     // Hiệu suất sạc/xả biến tần & pin
+            hourlyData: []
+        };
+
+        // Phân bổ tỷ trọng bức xạ mặt trời 24 giờ (Tổng các hệ số = 1.000)
+        // Nhân với (kWp * 4.5h nắng) -> Tổng sản lượng PV ngày = kWp * 4.5 kWh
+        const HOURLY_SOLAR_WEIGHTS = [
+            0.000, 0.000, 0.000, 0.000, 0.000, 0.000, // 00 - 05: 0%
+            0.015, 0.045, 0.085, 0.120, 0.145, 0.160, // 06 - 11: 57.0%
+            0.165, 0.130, 0.080, 0.035, 0.015, 0.005, // 12 - 17: 43.0% (Tổng 24h = 1.000)
+            0.000, 0.000, 0.000, 0.000, 0.000, 0.000  // 18 - 23: 0%
+        ];
+        const PEAK_HOUR_WEIGHT = Math.max(...HOURLY_SOLAR_WEIGHTS);
+
+        // Đường cong hình dạng phụ tải nội bộ Ban ngày (12 giờ: 06:00 - 17:00, tổng = 1.000)
+        const DAY_SHAPE_WEIGHTS = {
+            6: 0.055, 7: 0.070, 8: 0.080, 9: 0.085, 10: 0.090, 11: 0.105,
+            12: 0.110, 13: 0.100, 14: 0.085, 15: 0.075, 16: 0.070, 17: 0.075
+        };
+
+        // Đường cong hình dạng phụ tải nội bộ Ban đêm (12 giờ: 18:00 - 05:00, tổng = 1.000)
+        const NIGHT_SHAPE_WEIGHTS = {
+            18: 0.125, 19: 0.150, 20: 0.155, 21: 0.135, 22: 0.100, 23: 0.070,
+            0:  0.050, 1:  0.042, 2:  0.038, 3:  0.038, 4:  0.042, 5:  0.055
+        };
+
+        let powerChart = null;
+        let financeChart = null;
+        let playTimer = null;
+
+        /**
+         * Tính công suất tải tại từng giờ h dựa trên Tổng tải ngày (kWh) và Tỷ lệ % Ban ngày / Ban đêm
+         * - Khung Ban ngày (06:00 - 17:59, 12 giờ): Tổng bằng đúng loadDaily * (dayLoadPct / 100)
+         * - Khung Ban đêm (18:00 - 05:59, 12 giờ): Tổng bằng đúng loadDaily * ((100 - dayLoadPct) / 100)
+         */
+        function getHourlyLoadDemand(h) {
+            const dayTotalKwh = state.loadDaily * (state.dayLoadPct / 100);
+            const nightTotalKwh = state.loadDaily * ((100 - state.dayLoadPct) / 100);
+            if (h >= 6 && h < 18) {
+                return dayTotalKwh * DAY_SHAPE_WEIGHTS[h];
+            } else {
+                return nightTotalKwh * NIGHT_SHAPE_WEIGHTS[h];
+            }
+        }
+
+        /**
+         * Thuật toán cân bằng công suất vật lý chu kỳ 24 giờ (bắt đầu từ 06:00 bình minh để tính chính xác lượng sạc ban ngày và xả bù ban đêm)
+         */
+        function run24HourSimulation() {
+            const hourlyMap = new Array(24);
+            // Khởi đầu chu kỳ lúc 06:00 sáng với mức pin ở ngưỡng an toàn tối thiểu (10% DOD)
+            let currentSoc = state.batCap > 0 ? state.minSoc : 0;
+            const maxBatPower = state.batCap * 0.6; // Tốc độ sạc/xả tối đa 0.6C
+
+            // Tổng sản lượng PV tiềm năng cả ngày = kWp * 4.5h nắng * hệ số thời tiết
+            const dailyTargetPvKwh = state.pvCap * state.peakSunHours * state.weatherFactor;
+
+            // Mô phỏng nối tiếp 24 giờ bắt đầu từ 06:00 -> 17:00 (Ban ngày) rồi 18:00 -> 05:00 (Ban đêm)
+            for (let step = 0; step < 24; step++) {
+                const h = (6 + step) % 24;
+                const isDaytime = (h >= 6 && h < 18);
+
+                // 1. Công suất PV tiềm năng trong giờ h (kW)
+                const pvPotential = Number((dailyTargetPvKwh * HOURLY_SOLAR_WEIGHTS[h]).toFixed(4));
+
+                // 2. Công suất Tải tiêu thụ trong giờ h (kW)
+                const loadDemand = Number(getHourlyLoadDemand(h).toFixed(4));
+
+                let pvUsed = 0;
+                let pvCurtailed = 0;
+                let batCharge = 0;
+                let batDischarge = 0;
+                let gridImport = 0;
+                let gridExport = 0;
+                let unservedLoad = 0;
+                let operatingState = '';
+
+                const socStart = currentSoc;
+                const netPower = pvPotential - loadDemand;
+
+                if (netPower >= 0) {
+                    // THỪA NĂNG LƯỢNG MẶT TRỜI (PV >= Tải)
+                    let surplus = netPower;
+                    pvUsed = loadDemand;
+
+                    // Ưu tiên 1: Sạc phần dư vào Pin lưu trữ
+                    if (state.batCap > 0 && currentSoc < state.maxSoc) {
+                        const roomKwh = ((state.maxSoc - currentSoc) / 100) * state.batCap;
+                        const maxChargeAllowed = Math.min(surplus, maxBatPower, roomKwh / state.roundTripEff);
+                        batCharge = Number(maxChargeAllowed.toFixed(4));
+                        currentSoc += ((batCharge * state.roundTripEff) / state.batCap) * 100;
+                        surplus -= batCharge;
+                        pvUsed += batCharge;
+                    }
+
+                    // Ưu tiên 2: Xử lý phần năng lượng dư còn lại sau khi sạc pin
+                    if (surplus > 0.0005) {
+                        if (!state.isGridOutage && state.mode === 'feed_in') {
+                            gridExport = Number(surplus.toFixed(4));
+                            pvUsed += gridExport;
+                            operatingState = batCharge > 0.05
+                                ? 'PV cấp tải + Sạc pin + Đẩy lưới EVN'
+                                : 'Pin đầy (100%) • PV cấp tải & Bán lưới EVN';
+                        } else {
+                            // Bám tải (Zero-Export) hoặc Đang mất điện lưới -> Cắt giảm công suất dư
+                            pvCurtailed = Number(surplus.toFixed(4));
+                            operatingState = state.isGridOutage
+                                ? 'Độc lập (EPS) • PV cấp tải & Tự động hãm công suất dư'
+                                : (batCharge > 0.05
+                                    ? 'PV cấp tải + Sạc pin (Bám tải Zero-Export)'
+                                    : 'Pin đầy • Cắt giảm công suất dư (Zero-Export)');
+                        }
+                    } else {
+                        operatingState = batCharge > 0.05
+                            ? 'PV cấp 100% tải & Sạc pin lưu trữ'
+                            : 'PV cấp vừa đủ 100% tải tiêu thụ';
+                    }
+                } else {
+                    // THIẾU NĂNG LƯỢNG MẶT TRỜI (PV < Tải)
+                    pvUsed = pvPotential;
+                    let deficit = Math.abs(netPower);
+
+                    // Ưu tiên 1: Xả pin lưu trữ bù công suất thiếu hụt
+                    if (state.batCap > 0 && currentSoc > state.minSoc) {
+                        const availableKwh = ((currentSoc - state.minSoc) / 100) * state.batCap;
+                        const maxDischargeAllowed = Math.min(deficit, maxBatPower, availableKwh * state.roundTripEff);
+                        batDischarge = Number(maxDischargeAllowed.toFixed(4));
+                        currentSoc -= ((batDischarge / state.roundTripEff) / state.batCap) * 100;
+                        deficit -= batDischarge;
+                    }
+
+                    // Ưu tiên 2: Lấy điện lưới EVN nếu pin chưa bù đủ
+                    if (deficit > 0.0005) {
+                        if (!state.isGridOutage) {
+                            gridImport = Number(deficit.toFixed(4));
+                            if (pvPotential > 0.05 && batDischarge > 0.05) {
+                                operatingState = 'Hòa lưới thông minh: PV + Pin + Lưới EVN cùng cấp tải';
+                            } else if (batDischarge > 0.05) {
+                                operatingState = 'Pin xả hết ngưỡng an toàn • Lưới EVN cấp bù ban đêm';
+                            } else if (pvPotential > 0.05) {
+                                operatingState = 'PV cấp một phần • Lưới EVN bù tải thiếu';
+                            } else {
+                                operatingState = 'Ban đêm (Pin ở mức tối thiểu 10%) • Lấy lưới EVN bù tải';
+                            }
+                        } else {
+                            // Đang mất điện lưới -> Cảnh báo quá tải EPS nếu thiếu công suất
+                            unservedLoad = Number(deficit.toFixed(4));
+                            operatingState = 'CẢNH BÁO EPS: Cạn pin / Quá tải khi mất điện lưới!';
+                        }
+                    } else {
+                        operatingState = state.isGridOutage
+                            ? 'Chạy độc lập (EPS): PV + Pin cấp đủ 100% tải'
+                            : (pvPotential > 0.05
+                                ? 'PV + Pin lưu trữ xả bù cấp 100% tải'
+                                : 'Ban đêm: Pin lưu trữ xả cấp 100% tải nhà');
+                    }
+                }
+
+                currentSoc = Math.max(0, Math.min(100, currentSoc));
+
+                // Tính toán dòng tiền tiết kiệm theo đơn giá: 3.460 * 1,08 = 3.736,8 VNĐ/kWh
+                const effectiveTariff = state.baseTariff * state.vatMultiplier;
+                const feedInRate = 1940; // Đơn giá tham khảo khi phát dư lên lưới
+                const selfConsumedKwh = Math.max(0, loadDemand - gridImport - unservedLoad);
+                const netSavings = (selfConsumedKwh * effectiveTariff) + (gridExport * feedInRate);
+                const gridCost = gridImport * effectiveTariff;
+
+                hourlyMap[h] = {
+                    hour: h,
+                    isDaytime,
+                    label: `${String(h).padStart(2, '0')}:00`,
+                    pvPotential,
+                    pvUsed: Number(pvUsed.toFixed(3)),
+                    pvCurtailed,
+                    loadDemand: Number(loadDemand.toFixed(3)),
+                    batCharge: Number(batCharge.toFixed(3)),
+                    batDischarge: Number(batDischarge.toFixed(3)),
+                    gridImport: Number(gridImport.toFixed(3)),
+                    gridExport: Number(gridExport.toFixed(3)),
+                    unservedLoad: Number(unservedLoad.toFixed(3)),
+                    socStart: Number(socStart.toFixed(1)),
+                    socEnd: Number(currentSoc.toFixed(1)),
+                    operatingState,
+                    effectiveTariff,
+                    gridCost: Math.round(gridCost),
+                    netSavings: Math.round(netSavings)
+                };
+            }
+
+            state.hourlyData = hourlyMap;
+        }
+
+        /**
+         * Cập nhật giao diện sơ đồ động SVG, đèn LED, KPI và Biểu đồ (Chuẩn hóa 2 chữ số thập phân)
+         */
+        function updateUI() {
+            const data = state.hourlyData[state.hour];
+            if (!data) return;
+
+            const nightLoadPct = Number((100 - state.dayLoadPct).toFixed(2));
+            const dayKwh = state.loadDaily * (state.dayLoadPct / 100);
+            const nightKwh = state.loadDaily * (nightLoadPct / 100);
+
+            // 1. Cập nhật đồng hồ, nhãn Ban ngày/Ban đêm & thanh trượt
+            document.getElementById('headerClock').textContent = data.label;
+            const periodBadge = document.getElementById('headerPeriodBadge');
+            if (data.isDaytime) {
+                periodBadge.textContent = '☀️ Ban ngày (06h-18h)';
+                periodBadge.className = 'px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300';
+            } else {
+                periodBadge.textContent = '🌙 Ban đêm (18h-06h)';
+                periodBadge.className = 'px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300';
+            }
+
+            document.getElementById('valHour').textContent = `${data.label} (${data.isDaytime ? 'Ban ngày' : 'Ban đêm'})`;
+            document.getElementById('sliderHour').value = state.hour;
+            
+            document.getElementById('sliderPvCap').value = Math.min(50, state.pvCap);
+            if (document.activeElement !== document.getElementById('inputPvCap')) {
+                document.getElementById('inputPvCap').value = state.pvCap.toFixed(2);
+            }
+            
+            document.getElementById('sliderBatCap').value = Math.min(60, state.batCap);
+            if (document.activeElement !== document.getElementById('inputBatCap')) {
+                document.getElementById('inputBatCap').value = state.batCap.toFixed(2);
+            }
+            
+            document.getElementById('sliderLoadDaily').value = Math.min(150, state.loadDaily);
+            if (document.activeElement !== document.getElementById('inputLoadDaily')) {
+                document.getElementById('inputLoadDaily').value = state.loadDaily.toFixed(2);
+            }
+            
+            const daySlider = document.getElementById('sliderDayRatio');
+            daySlider.value = state.dayLoadPct;
+            daySlider.style.setProperty('--day-pct', `${state.dayLoadPct.toFixed(2)}%`);
+            if (document.activeElement !== document.getElementById('inputDayPct')) {
+                document.getElementById('inputDayPct').value = state.dayLoadPct.toFixed(2);
+            }
+            if (document.activeElement !== document.getElementById('inputNightPct')) {
+                document.getElementById('inputNightPct').value = nightLoadPct.toFixed(2);
+            }
+            document.getElementById('valDayKwh').textContent = `${dayKwh.toFixed(2)} kWh`;
+            document.getElementById('valNightKwh').textContent = `${nightKwh.toFixed(2)} kWh`;
+
+            // 2. Cập nhật trạng thái vận hành & Banner cảnh báo
+            document.getElementById('currentModeLabel').textContent = data.operatingState;
+            const modeDot = document.getElementById('modeIndicatorDot');
+            const alertBanner = document.getElementById('systemAlertBanner');
+
+            if (data.unservedLoad > 0.05) {
+                modeDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping';
+                alertBanner.className = 'rounded-xl border border-rose-300 bg-rose-50 text-rose-900 px-4 py-3 flex items-center justify-between gap-3 shadow-sm';
+                document.getElementById('alertIcon').className = 'flex-shrink-0 w-8 h-8 rounded-lg bg-rose-200 text-rose-700 flex items-center justify-center animate-alert';
+                document.getElementById('alertIcon').innerHTML = '⚠️';
+                document.getElementById('alertTitle').textContent = 'Cảnh báo Quá tải / Cạn Pin ở chế độ Dự phòng (EPS)';
+                document.getElementById('alertDesc').textContent = `Lưới điện đang mất. Công suất tải (${data.loadDemand.toFixed(2)} kW) vượt khả năng cấp của PV + Pin, thiếu hụt ${data.unservedLoad.toFixed(2)} kW.`;
+                document.getElementById('alertBadge').className = 'text-xs font-mono font-bold px-2.5 py-1 rounded-md bg-rose-600 text-white';
+                document.getElementById('alertBadge').textContent = 'EPS OVERLOAD';
+            } else if (state.isGridOutage) {
+                modeDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse';
+                alertBanner.className = 'rounded-xl border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 flex items-center justify-between gap-3 shadow-sm';
+                document.getElementById('alertIcon').className = 'flex-shrink-0 w-8 h-8 rounded-lg bg-amber-200 text-amber-700 flex items-center justify-center';
+                document.getElementById('alertIcon').innerHTML = '🔋';
+                document.getElementById('alertTitle').textContent = 'Hệ thống đang chạy Độc lập (Backup / Off-Grid)';
+                document.getElementById('alertDesc').textContent = 'Biến tần Hybrid Solis tự động cách ly lưới EVN và duy trì nguồn điện liên tục từ PV & Pin lưu trữ.';
+                document.getElementById('alertBadge').className = 'text-xs font-mono font-bold px-2.5 py-1 rounded-md bg-amber-500 text-white';
+                document.getElementById('alertBadge').textContent = 'EPS ACTIVE';
+            } else {
+                modeDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse';
+                alertBanner.className = 'hidden';
+            }
+
+            // 3. Cập nhật thông số các thiết bị trên sơ đồ SVG
+            // 3A. Dàn pin PV trên mái nhà
+            const effPercent = Math.round((HOURLY_SOLAR_WEIGHTS[state.hour] / PEAK_HOUR_WEIGHT) * state.weatherFactor * 100);
+            document.getElementById('nodePvBadgeHouse').textContent = `PV: ${data.pvUsed.toFixed(2)} kW (${state.pvCap.toFixed(2)} kWp)`;
+            document.getElementById('nodePvSub').textContent = data.pvCurtailed > 0.01
+                ? `Bức xạ: ${effPercent}% • Hãm ${data.pvCurtailed.toFixed(2)}kW`
+                : `Bức xạ: ${effPercent}%`;
+
+            // 3B. Lưới điện EVN
+            const gridNodePower = document.getElementById('nodeGridPower');
+            const gridNodeStatus = document.getElementById('nodeGridStatus');
+            const gridNodeFreq = document.getElementById('nodeGridFreq');
+            const gridTopBar = document.getElementById('nodeGridTopBar');
+
+            if (state.isGridOutage) {
+                gridNodePower.textContent = '0.00 kW';
+                gridNodePower.setAttribute('fill', '#64748b');
+                gridNodeFreq.textContent = '0V • MẤT LƯỚI';
+                gridNodeFreq.setAttribute('fill', '#f43f5e');
+                gridNodeStatus.textContent = 'Đã ngắt kết nối (EPS)';
+                gridTopBar.setAttribute('fill', '#475569');
+            } else if (data.gridImport > 0.01) {
+                gridNodePower.textContent = `+${data.gridImport.toFixed(2)} kW`;
+                gridNodePower.setAttribute('fill', '#fb7185');
+                gridNodeFreq.textContent = '220V • 50Hz';
+                gridNodeFreq.setAttribute('fill', '#34d399');
+                gridNodeStatus.textContent = data.isDaytime ? 'Bù lưới ban ngày' : 'Bù lưới ban đêm';
+                gridTopBar.setAttribute('fill', '#fb7185');
+            } else if (data.gridExport > 0.01) {
+                gridNodePower.textContent = `-${data.gridExport.toFixed(2)} kW`;
+                gridNodePower.setAttribute('fill', '#2dd4bf');
+                gridNodeFreq.textContent = '220V • 50Hz';
+                gridNodeFreq.setAttribute('fill', '#34d399');
+                gridNodeStatus.textContent = 'Đang đẩy dư lên lưới';
+                gridTopBar.setAttribute('fill', '#2dd4bf');
+            } else {
+                gridNodePower.textContent = '0.00 kW';
+                gridNodePower.setAttribute('fill', '#94a3b8');
+                gridNodeFreq.textContent = '220V • 50Hz';
+                gridNodeFreq.setAttribute('fill', '#34d399');
+                gridNodeStatus.textContent = 'Không lấy điện lưới';
+                gridTopBar.setAttribute('fill', '#64748b');
+            }
+
+            // 3C. Pin lưu trữ SolisStorage & 4 LED báo SOC
+            const soc = data.socEnd;
+            document.getElementById('nodeBatSoc').textContent = state.batCap > 0 ? `${soc.toFixed(1)}%` : 'N/A';
+            document.getElementById('nodeBatCap').textContent = `${state.batCap.toFixed(2)} kWh`;
+            const barWidth = state.batCap > 0 ? Math.max(4, (soc / 100) * 90) : 0;
+            const batProgress = document.getElementById('batSvgProgress');
+            batProgress.setAttribute('width', barWidth);
+            const socColor = soc <= 15 ? '#f43f5e' : (soc <= 35 ? '#fbbf24' : '#34d399');
+            batProgress.setAttribute('fill', socColor);
+            document.getElementById('nodeBatSoc').setAttribute('fill', socColor);
+
+            const leds = [
+                document.getElementById('batLed1'),
+                document.getElementById('batLed2'),
+                document.getElementById('batLed3'),
+                document.getElementById('batLed4')
+            ];
+            leds.forEach((led, idx) => {
+                if (!led) return;
+                const threshold = (idx + 1) * 20;
+                const isLit = state.batCap > 0 && soc >= threshold;
+                led.setAttribute('fill', isLit ? (soc <= 20 ? '#f43f5e' : '#38bdf8') : '#cbd5e1');
+            });
+
+            const batNodePower = document.getElementById('nodeBatPower');
+            const batNodeStatus = document.getElementById('nodeBatStatus');
+            if (state.batCap <= 0) {
+                batNodePower.textContent = '0.00 kW';
+                batNodeStatus.textContent = 'Không lắp pin lưu trữ';
+            } else if (data.batCharge > 0.01) {
+                batNodePower.textContent = `+${data.batCharge.toFixed(2)} kW`;
+                batNodePower.setAttribute('fill', '#34d399');
+                batNodeStatus.textContent = 'Đang sạc từ PV';
+            } else if (data.batDischarge > 0.01) {
+                batNodePower.textContent = `-${data.batDischarge.toFixed(2)} kW`;
+                batNodePower.setAttribute('fill', '#38bdf8');
+                batNodeStatus.textContent = 'Đang xả cấp tải';
+            } else {
+                batNodePower.textContent = '0.00 kW';
+                batNodePower.setAttribute('fill', '#f8fafc');
+                batNodeStatus.textContent = soc <= 10.5 ? 'Đã chạm ngưỡng DOD 10%' : 'Chế độ chờ (Standby)';
+            }
+
+            // 3D. Biến tần Hybrid Solis trung tâm
+            const invThroughput = Math.max(data.pvUsed + data.batDischarge, data.loadDemand + data.batCharge + data.gridExport);
+            document.getElementById('invThroughputBadge').textContent = `Công suất: ${invThroughput.toFixed(2)} kW`;
+            document.getElementById('invOpLed').setAttribute('fill', invThroughput > 0.05 ? '#22c55e' : '#94a3b8');
+            document.getElementById('invAlarmLed').setAttribute('fill', data.unservedLoad > 0.05 ? '#ef4444' : '#94a3b8');
+
+            // 3E. Ngôi nhà mặt cắt 3D & Tải tiêu thụ
+            document.getElementById('nodeLoadPower').textContent = `${data.loadDemand.toFixed(2)} kW`;
+            document.getElementById('nodeLoadDaily').textContent = `Ngày: ${dayKwh.toFixed(2)}kWh • Đêm: ${nightKwh.toFixed(2)}kWh`;
+            const houseGlow = document.getElementById('houseInteriorGlow');
+            if (houseGlow) {
+                const loadIntensity = Math.min(1, Math.max(0.25, data.loadDemand / 6.0));
+                houseGlow.setAttribute('opacity', loadIntensity.toFixed(2));
+            }
+
+            const loadSource = document.getElementById('nodeLoadSource');
+            if (data.unservedLoad > 0.05) {
+                loadSource.textContent = `Thiếu công suất: -${data.unservedLoad.toFixed(2)} kW`;
+                loadSource.setAttribute('fill', '#fb7185');
+            } else if (data.gridImport <= 0.02) {
+                loadSource.textContent = 'Nguồn cấp: 100% Năng lượng sạch';
+                loadSource.setAttribute('fill', '#34d399');
+            } else {
+                const cleanPct = Math.round(((data.loadDemand - data.gridImport) / Math.max(0.01, data.loadDemand)) * 100);
+                loadSource.textContent = `Tự chủ: ${cleanPct}% • Lưới EVN: ${100 - cleanPct}%`;
+                loadSource.setAttribute('fill', '#38bdf8');
+            }
+
+            // 4. Cập nhật chuyển động & tốc độ dòng điện trên các dây dẫn SVG
+            animateWire('wirePvToInv', 'pillPvText', data.pvUsed, 'forward', `${data.pvUsed.toFixed(2)} kW`);
+
+            if (!state.isGridOutage && data.gridImport > 0.02) {
+                animateWire('wireGridToInv', 'pillGridText', data.gridImport, 'forward', `Mua ${data.gridImport.toFixed(2)}kW`, '#fb7185');
+                document.getElementById('pillGridBox').setAttribute('stroke', '#fb7185');
+            } else if (!state.isGridOutage && data.gridExport > 0.02) {
+                animateWire('wireGridToInv', 'pillGridText', data.gridExport, 'reverse', `Bán ${data.gridExport.toFixed(2)}kW`, '#2dd4bf');
+                document.getElementById('pillGridBox').setAttribute('stroke', '#2dd4bf');
+            } else {
+                animateWire('wireGridToInv', 'pillGridText', 0, 'idle', state.isGridOutage ? 'MẤT LƯỚI' : '0.00 kW', '#64748b');
+                document.getElementById('pillGridBox').setAttribute('stroke', '#475569');
+            }
+
+            if (data.batCharge > 0.02) {
+                animateWire('wireInvToBat', 'pillBatText', data.batCharge, 'forward', `Sạc +${data.batCharge.toFixed(2)}kW`, '#34d399');
+                document.getElementById('pillBatBox').setAttribute('stroke', '#34d399');
+            } else if (data.batDischarge > 0.02) {
+                animateWire('wireInvToBat', 'pillBatText', data.batDischarge, 'reverse', `Xả -${data.batDischarge.toFixed(2)}kW`, '#38bdf8');
+                document.getElementById('pillBatBox').setAttribute('stroke', '#38bdf8');
+            } else {
+                animateWire('wireInvToBat', 'pillBatText', 0, 'idle', '0.00 kW', '#64748b');
+                document.getElementById('pillBatBox').setAttribute('stroke', '#475569');
+            }
+
+            const servedLoad = Math.max(0, data.loadDemand - data.unservedLoad);
+            animateWire('wireInvToLoad', 'pillLoadText', servedLoad, 'forward', `${servedLoad.toFixed(2)} kW`);
+
+            // 5. Cập nhật KPI & Biểu đồ
+            updateDailyKPIs();
+            updateCharts();
+        }
+
+        function animateWire(wireId, pillTextId, powerKw, direction, labelText, overrideColor = null) {
+            const wire = document.getElementById(wireId);
+            const pill = document.getElementById(pillTextId);
+            if (pill) pill.textContent = labelText;
+            if (!wire) return;
+
+            if (overrideColor) {
+                wire.setAttribute('stroke', overrideColor);
+                if (pill) pill.setAttribute('fill', overrideColor);
+            }
+
+            if (powerKw <= 0.02 || direction === 'idle') {
+                wire.setAttribute('class', 'flow-line-idle');
+                wire.setAttribute('stroke-width', '2.5');
+                wire.removeAttribute('filter');
+            } else {
+                const speedSec = Math.max(0.32, Math.min(2.0, 2.2 / Math.sqrt(powerKw + 0.3)));
+                const strokeW = Math.max(3, Math.min(6.5, 2.8 + powerKw * 0.32));
+                wire.style.setProperty('--flow-speed', `${speedSec.toFixed(2)}s`);
+                wire.setAttribute('stroke-width', strokeW.toFixed(1));
+                wire.setAttribute('class', direction === 'reverse' ? 'flow-line-reverse' : 'flow-line-forward');
+            }
+        }
+
+        /**
+         * Tính tổng hợp chỉ số KPI cả ngày (24h) & tách bạch khung Ban ngày / Ban đêm (2 chữ số thập phân)
+         */
+        function updateDailyKPIs() {
+            let totalPvPotential = 0;
+            let totalPvUsed = 0;
+            let totalPvCurtailed = 0;
+            let totalLoad = 0;
+            let totalGridImport = 0;
+            let totalSavings = 0;
+
+            // Tách chỉ số Ban ngày (06:00 - 18:00) và Ban đêm (18:00 - 06:00)
+            let dayLoadSum = 0;
+            let dayBatChargeSum = 0;
+            let dayGridImportSum = 0;
+
+            let nightLoadSum = 0;
+            let nightBatDischargeSum = 0;
+            let nightGridImportSum = 0;
+            let nightGridCostSum = 0;
+
+            state.hourlyData.forEach(item => {
+                totalPvPotential += item.pvPotential;
+                totalPvUsed += item.pvUsed;
+                totalPvCurtailed += item.pvCurtailed;
+                totalLoad += item.loadDemand;
+                totalGridImport += item.gridImport;
+                totalSavings += item.netSavings;
+
+                if (item.isDaytime) {
+                    dayLoadSum += item.loadDemand;
+                    dayBatChargeSum += item.batCharge;
+                    dayGridImportSum += item.gridImport;
+                } else {
+                    nightLoadSum += item.loadDemand;
+                    nightBatDischargeSum += item.batDischarge;
+                    nightGridImportSum += item.gridImport;
+                    nightGridCostSum += item.gridCost;
+                }
+            });
+
+            const nightLoadPct = Number((100 - state.dayLoadPct).toFixed(2));
+            const selfSufficiency = totalLoad > 0
+                ? Math.max(0, Math.min(100, ((totalLoad - totalGridImport) / totalLoad) * 100))
+                : 0;
+
+            const formatVnd = (val) => new Intl.NumberFormat('vi-VN').format(Math.round(val)) + ' đ';
+
+            // KPI 1: Sản lượng PV
+            const effectiveSunHours = (state.peakSunHours * state.weatherFactor).toFixed(2).replace('.', ',');
+            document.getElementById('kpiPvTotal').textContent = `${totalPvPotential.toFixed(2)} kWh`;
+            document.getElementById('kpiPvFormula').textContent = `${state.pvCap.toFixed(2)} kWp × ${effectiveSunHours}h nắng/ngày`;
+            document.getElementById('kpiPvCurtailed').textContent = totalPvCurtailed > 0.01
+                ? `Phát thực tế: ${totalPvUsed.toFixed(2)} kWh (Hãm ${totalPvCurtailed.toFixed(2)} kWh)`
+                : `Phát thực tế: ${totalPvUsed.toFixed(2)} kWh (100% hiệu dụng)`;
+
+            // KPI 2: Tổng tải tiêu thụ & phân bổ ngày/đêm
+            document.getElementById('kpiLoadTotal').textContent = `${state.loadDaily.toFixed(2)} kWh`;
+            document.getElementById('kpiLoadSplit').textContent = `Ngày: ${dayLoadSum.toFixed(2)} kWh (${state.dayLoadPct.toFixed(2)}%) • Đêm: ${nightLoadSum.toFixed(2)} kWh (${nightLoadPct.toFixed(2)}%)`;
+            document.getElementById('kpiGridImport').textContent = `Tổng mua lưới cả ngày: ${totalGridImport.toFixed(2)} kWh`;
+
+            // KPI 3: Cân bằng điện Ban đêm (Pin xả vs Lưới bù đêm)
+            document.getElementById('kpiNightGridImport').textContent = `${nightGridImportSum.toFixed(2)} kWh`;
+            document.getElementById('kpiNightBatDischarge').textContent = `Pin lưu trữ xả cấp đêm: ${nightBatDischargeSum.toFixed(2)} kWh`;
+            document.getElementById('kpiNightGridCost').textContent = `Tiền điện mua bù đêm: ${formatVnd(nightGridCostSum)}`;
+
+            // KPI 4: Tiết kiệm tiền điện (x 3.460 * 1,08)
+            document.getElementById('kpiDailySavings').textContent = formatVnd(totalSavings);
+            document.getElementById('kpiMonthlySavings').textContent = `Ước tính tháng: ${formatVnd(totalSavings * 30)}`;
+
+            // Bảng cân bằng năng lượng chi tiết Ban ngày vs Ban đêm
+            document.getElementById('kpiSelfSufficiencyBadge').textContent = `Tỷ lệ tự chủ năng lượng: ${selfSufficiency.toFixed(2)}%`;
+
+            document.getElementById('stripDayRatio').textContent = `${state.dayLoadPct.toFixed(2)}% tổng tải`;
+            document.getElementById('stripDayLoad').textContent = `${dayLoadSum.toFixed(2)} kWh`;
+            document.getElementById('stripDayBatCharge').textContent = `${dayBatChargeSum.toFixed(2)} kWh`;
+            document.getElementById('stripDayGridImport').textContent = `${dayGridImportSum.toFixed(2)} kWh`;
+
+            document.getElementById('stripNightRatio').textContent = `${nightLoadPct.toFixed(2)}% tổng tải`;
+            document.getElementById('stripNightLoad').textContent = `${nightLoadSum.toFixed(2)} kWh`;
+            document.getElementById('stripNightBatDischarge').textContent = `${nightBatDischargeSum.toFixed(2)} kWh`;
+            document.getElementById('stripNightGridImport').textContent = `${nightGridImportSum.toFixed(2)} kWh`;
+        }
+
+        /**
+         * Khởi tạo biểu đồ Chart.js (24h Công suất & SOC + Dòng tiền tiết kiệm)
+         */
+        function initCharts() {
+            Chart.defaults.color = '#334155';
+            Chart.defaults.font.family = "'Be Vietnam Pro', sans-serif";
+            Chart.defaults.font.size = 12;
+
+            // Plugin vẽ đường thẳng đứng đánh dấu giờ hiện tại trên biểu đồ
+            const currentHourLinePlugin = {
+                id: 'currentHourLine',
+                afterDatasetsDraw(chart) {
+                    const { ctx, chartArea: { top, bottom }, scales: { x } } = chart;
+                    const xPos = x.getPixelForValue(state.hour);
+                    if (xPos === undefined) return;
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.setLineDash([4, 4]);
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = '#d97706';
+                    ctx.moveTo(xPos, top);
+                    ctx.lineTo(xPos, bottom);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            };
+
+            const ctxPower = document.getElementById('powerChart').getContext('2d');
+            powerChart = new Chart(ctxPower, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Sản lượng PV (kW)',
+                            data: [],
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.18)',
+                            borderWidth: 2.5,
+                            fill: true,
+                            tension: 0.35,
+                            pointRadius: 2.5,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Tải tiêu thụ (kW)',
+                            data: [],
+                            borderColor: '#0284c7',
+                            backgroundColor: 'rgba(2, 132, 199, 0.10)',
+                            borderWidth: 2.5,
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 2.5,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Mua lưới EVN (kW)',
+                            data: [],
+                            borderColor: '#e11d48',
+                            borderWidth: 2,
+                            borderDash: [4, 4],
+                            fill: false,
+                            tension: 0.25,
+                            pointRadius: 0,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Mức Pin SOC (%)',
+                            data: [],
+                            borderColor: '#059669',
+                            borderWidth: 2.8,
+                            fill: false,
+                            tension: 0.25,
+                            pointRadius: 2.5,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { boxWidth: 12, usePointStyle: true, padding: 14, color: '#0f172a', font: { weight: '600' } }
+                        },
+                        tooltip: {
+                            backgroundColor: '#0f172a',
+                            titleColor: '#ffffff',
+                            bodyColor: '#f8fafc',
+                            borderColor: '#334155',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(203, 213, 225, 0.55)' }
+                        },
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            title: { display: true, text: 'Công suất (kW)', color: '#334155', font: { weight: '700' } },
+                            grid: { color: 'rgba(203, 213, 225, 0.55)' },
+                            beginAtZero: true
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            title: { display: true, text: 'Mức Pin SOC (%)', color: '#059669', font: { weight: '700' } },
+                            min: 0,
+                            max: 100,
+                            grid: { drawOnChartArea: false }
+                        }
+                    }
+                },
+                plugins: [currentHourLinePlugin]
+            });
+
+            const ctxFinance = document.getElementById('financeChart').getContext('2d');
+            financeChart = new Chart(ctxFinance, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Tiết kiệm điện (VNĐ)',
+                            data: [],
+                            backgroundColor: 'rgba(16, 185, 129, 0.85)',
+                            borderColor: '#059669',
+                            borderWidth: 1,
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Chi phí mua lưới (VNĐ)',
+                            data: [],
+                            backgroundColor: 'rgba(244, 63, 94, 0.78)',
+                            borderColor: '#e11d48',
+                            borderWidth: 1,
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { boxWidth: 12, usePointStyle: true, padding: 14, color: '#0f172a', font: { weight: '600' } }
+                        },
+                        tooltip: {
+                            backgroundColor: '#0f172a',
+                            titleColor: '#ffffff',
+                            bodyColor: '#f8fafc',
+                            borderColor: '#334155',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(ctx) {
+                                    return `${ctx.dataset.label}: ${new Intl.NumberFormat('vi-VN').format(ctx.parsed.y)} đ`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false }
+                        },
+                        y: {
+                            grid: { color: 'rgba(203, 213, 225, 0.55)' },
+                            beginAtZero: true,
+                            ticks: {
+                                callback: (v) => `${(v / 1000).toFixed(0)}k`
+                            }
+                        }
+                    }
+                },
+                plugins: [currentHourLinePlugin]
+            });
+        }
+
+        function updateCharts() {
+            if (!powerChart || !financeChart) return;
+            const labels = state.hourlyData.map(d => d.label);
+
+            powerChart.data.labels = labels;
+            powerChart.data.datasets[0].data = state.hourlyData.map(d => d.pvUsed);
+            powerChart.data.datasets[1].data = state.hourlyData.map(d => d.loadDemand);
+            powerChart.data.datasets[2].data = state.hourlyData.map(d => d.gridImport);
+            powerChart.data.datasets[3].data = state.hourlyData.map(d => d.socEnd);
+            powerChart.update('none');
+
+            financeChart.data.labels = labels;
+            financeChart.data.datasets[0].data = state.hourlyData.map(d => d.netSavings);
+            financeChart.data.datasets[1].data = state.hourlyData.map(d => d.gridCost);
+            financeChart.update('none');
+        }
+
+        /**
+         * Điều khiển vòng lặp thời gian tự động
+         */
+        function startPlayback() {
+            if (playTimer) clearInterval(playTimer);
+            const intervalMs = Math.round(1300 / state.playSpeed);
+            playTimer = setInterval(() => {
+                if (!state.isPlaying) return;
+                state.hour = (state.hour + 1) % 24;
+                updateUI();
+            }, intervalMs);
+        }
+
+        /**
+         * Đồng bộ hóa cập nhật tỷ lệ Ban ngày (%) <-> Ban đêm (%) với 2 chữ số thập phân
+         */
+        function setDayRatio(newDayPct) {
+            const clamped = Math.max(0, Math.min(100, Number(newDayPct.toFixed(2))));
+            state.dayLoadPct = clamped;
+            run24HourSimulation();
+            updateUI();
+        }
+
+        /**
+         * Khởi tạo toàn bộ sự kiện tương tác người dùng
+         */
+        function bindEvents() {
+            // Nút Play / Pause & Tốc độ mô phỏng
+            document.getElementById('btnPlayPause').addEventListener('click', () => {
+                state.isPlaying = !state.isPlaying;
+                document.getElementById('playIcon').textContent = state.isPlaying ? '⏸' : '▶';
+                document.getElementById('playText').textContent = state.isPlaying ? 'Tạm dừng' : 'Tiếp tục';
+            });
+
+            document.getElementById('btnSpeed').addEventListener('click', () => {
+                const speeds = [1, 2, 5];
+                const nextIdx = (speeds.indexOf(state.playSpeed) + 1) % speeds.length;
+                state.playSpeed = speeds[nextIdx];
+                document.getElementById('btnSpeed').textContent = `${state.playSpeed}x`;
+                startPlayback();
+            });
+
+            // Thanh tua thời gian
+            document.getElementById('sliderHour').addEventListener('input', (e) => {
+                state.hour = parseInt(e.target.value, 10);
+                updateUI();
+            });
+
+            // Thanh trượt & Ô nhập trực tiếp Công suất PV (kWp) - 2 số thập phân
+            document.getElementById('sliderPvCap').addEventListener('input', (e) => {
+                state.pvCap = Number(parseFloat(e.target.value).toFixed(2));
+                run24HourSimulation();
+                updateUI();
+            });
+            document.getElementById('inputPvCap').addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val) && val >= 0 && val <= 500) {
+                    state.pvCap = Number(val.toFixed(2));
+                    run24HourSimulation();
+                    updateUI();
+                }
+            });
+            document.getElementById('inputPvCap').addEventListener('blur', () => updateUI());
+
+            // Thanh trượt & Ô nhập trực tiếp Dung lượng Pin (kWh) - 2 số thập phân
+            document.getElementById('sliderBatCap').addEventListener('input', (e) => {
+                state.batCap = Number(parseFloat(e.target.value).toFixed(2));
+                run24HourSimulation();
+                updateUI();
+            });
+            document.getElementById('inputBatCap').addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val) && val >= 0 && val <= 1000) {
+                    state.batCap = Number(val.toFixed(2));
+                    run24HourSimulation();
+                    updateUI();
+                }
+            });
+            document.getElementById('inputBatCap').addEventListener('blur', () => updateUI());
+
+            // Thanh trượt & Ô nhập trực tiếp Tổng tải tiêu thụ / Ngày (kWh) - 2 số thập phân
+            document.getElementById('sliderLoadDaily').addEventListener('input', (e) => {
+                state.loadDaily = Number(parseFloat(e.target.value).toFixed(2));
+                run24HourSimulation();
+                updateUI();
+            });
+            document.getElementById('inputLoadDaily').addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val) && val >= 0 && val <= 500) {
+                    state.loadDaily = Number(val.toFixed(2));
+                    run24HourSimulation();
+                    updateUI();
+                }
+            });
+            document.getElementById('inputLoadDaily').addEventListener('blur', () => updateUI());
+
+            // Thanh trượt & Ô nhập trực tiếp Tỷ lệ Ban ngày (%) / Ban đêm (%) - 2 số thập phân
+            document.getElementById('sliderDayRatio').addEventListener('input', (e) => {
+                setDayRatio(parseFloat(e.target.value));
+            });
+            document.getElementById('inputDayPct').addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val)) setDayRatio(val);
+            });
+            document.getElementById('inputDayPct').addEventListener('blur', () => updateUI());
+
+            document.getElementById('inputNightPct').addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val)) setDayRatio(100 - val);
+            });
+            document.getElementById('inputNightPct').addEventListener('blur', () => updateUI());
+
+            // Chọn Điều kiện thời tiết
+            document.querySelectorAll('.weather-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    state.weatherFactor = parseFloat(btn.dataset.weather);
+                    document.querySelectorAll('.weather-btn').forEach(b => {
+                        b.className = b === btn
+                            ? 'weather-btn active py-2 px-2 rounded-xl border border-amber-500 bg-amber-50 text-amber-800 text-xs font-bold flex flex-col items-center gap-0.5 transition shadow-sm'
+                            : 'weather-btn py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-xs font-bold flex flex-col items-center gap-0.5 transition';
+                    });
+                    run24HourSimulation();
+                    updateUI();
+                });
+            });
+
+            // Chọn Chế độ vận hành
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    state.mode = btn.dataset.mode;
+                    document.querySelectorAll('.mode-btn').forEach(b => {
+                        b.className = b === btn
+                            ? 'mode-btn py-2 px-3 rounded-xl border border-sky-600 bg-sky-50 text-sky-900 text-xs font-semibold text-left transition shadow-sm'
+                            : 'mode-btn py-2 px-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-xs font-semibold text-left transition';
+                    });
+                    run24HourSimulation();
+                    updateUI();
+                });
+            });
+
+            // Công tắc Mất điện lưới (Backup EPS)
+            document.getElementById('btnToggleOutage').addEventListener('click', () => {
+                state.isGridOutage = !state.isGridOutage;
+                const badge = document.getElementById('outageSwitchBadge');
+                const btn = document.getElementById('btnToggleOutage');
+                if (state.isGridOutage) {
+                    badge.textContent = 'ĐANG MẤT ĐIỆN';
+                    badge.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-rose-600 text-white animate-pulse';
+                    btn.className = 'w-full py-2.5 px-4 rounded-xl border border-rose-500 bg-rose-100 text-rose-900 font-bold text-xs sm:text-sm flex items-center justify-between transition shadow-sm';
+                } else {
+                    badge.textContent = 'TẮT';
+                    badge.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-slate-200 text-slate-700';
+                    btn.className = 'w-full py-2.5 px-4 rounded-xl border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs sm:text-sm flex items-center justify-between transition';
+                }
+                run24HourSimulation();
+                updateUI();
+            });
+
+            // Ô nhập giá gốc (mặc định 3460 * 1.08)
+            document.getElementById('inputTariff').addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val) && val > 0) {
+                    state.baseTariff = val;
+                    run24HourSimulation();
+                    updateUI();
+                }
+            });
+
+            // Nút Đặt lại mặc định
+            document.getElementById('btnResetDefaults').addEventListener('click', () => {
+                state.hour = 12;
+                state.pvCap = 10.00;
+                state.batCap = 15.00;
+                state.loadDaily = 35.00;
+                state.dayLoadPct = 60.00;
+                state.weatherFactor = 1.0;
+                state.mode = 'zero_export';
+                state.isGridOutage = false;
+                state.baseTariff = 3460;
+                state.vatMultiplier = 1.08;
+
+                document.getElementById('sliderPvCap').value = 10.00;
+                document.getElementById('inputPvCap').value = '10.00';
+                document.getElementById('sliderBatCap').value = 15.00;
+                document.getElementById('inputBatCap').value = '15.00';
+                document.getElementById('sliderLoadDaily').value = 35.00;
+                document.getElementById('inputLoadDaily').value = '35.00';
+                document.getElementById('inputTariff').value = 3460;
+
+                document.querySelectorAll('.weather-btn').forEach((b, idx) => {
+                    b.className = idx === 0
+                        ? 'weather-btn active py-2 px-2 rounded-xl border border-amber-500 bg-amber-50 text-amber-800 text-xs font-bold flex flex-col items-center gap-0.5 transition shadow-sm'
+                        : 'weather-btn py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-xs font-bold flex flex-col items-center gap-0.5 transition';
+                });
+
+                document.querySelectorAll('.mode-btn').forEach((b, idx) => {
+                    b.className = idx === 0
+                        ? 'mode-btn py-2 px-3 rounded-xl border border-sky-600 bg-sky-50 text-sky-900 text-xs font-semibold text-left transition shadow-sm'
+                        : 'mode-btn py-2 px-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-xs font-semibold text-left transition';
+                });
+
+                document.getElementById('outageSwitchBadge').textContent = 'TẮT';
+                document.getElementById('outageSwitchBadge').className = 'px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-slate-200 text-slate-700';
+                document.getElementById('btnToggleOutage').className = 'w-full py-2.5 px-4 rounded-xl border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs sm:text-sm flex items-center justify-between transition';
+
+                run24HourSimulation();
+                updateUI();
+            });
+
+            // Modal Đổi ảnh thiết bị
+            const modal = document.getElementById('customImgModal');
+            document.getElementById('btnOpenCustomImgModal').addEventListener('click', () => modal.classList.remove('hidden'));
+            document.getElementById('btnCloseCustomImgModal').addEventListener('click', () => modal.classList.add('hidden'));
+            document.getElementById('btnDoneCustomImgModal').addEventListener('click', () => modal.classList.add('hidden'));
+
+            const handleImageUpload = (inputId, defaultGroupId, customImgId) => {
+                document.getElementById(inputId).addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        const imgEl = document.getElementById(customImgId);
+                        imgEl.setAttribute('href', ev.target.result);
+                        imgEl.classList.remove('hidden');
+                        document.getElementById(defaultGroupId).classList.add('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                });
+            };
+
+            handleImageUpload('uploadInvFile', 'defaultInvGraphic', 'customInvImage');
+            handleImageUpload('uploadBatFile', 'defaultBatGraphic', 'customBatImage');
+            handleImageUpload('uploadHouseFile', 'defaultHouseGraphic', 'customHouseImage');
+
+            document.getElementById('btnResetCustomImages').addEventListener('click', () => {
+                ['customInvImage', 'customBatImage', 'customHouseImage'].forEach(id => {
+                    const el = document.getElementById(id);
+                    el.classList.add('hidden');
+                    el.removeAttribute('href');
+                });
+                ['defaultInvGraphic', 'defaultBatGraphic', 'defaultHouseGraphic'].forEach(id => {
+                    document.getElementById(id).classList.remove('hidden');
+                });
+            });
+        }
+
+        // Khởi chạy ứng dụng khi tải xong trang
+        window.onload = function() {
+            initCharts();
+            bindEvents();
+            run24HourSimulation();
+            updateUI();
+            startPlayback();
+        };
+    </script>
+</body>
+</html>
