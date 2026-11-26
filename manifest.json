@@ -1,0 +1,16 @@
+JSON
+{
+  "name": "THÁI DƯƠNG - Mô Phỏng Điện Mặt Trời Hybrid",
+  "short_name": "THÁI DƯƠNG",
+  "start_url": "/solis-hybrid-app/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
