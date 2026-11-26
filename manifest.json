@@ -1,19 +1,11 @@
-JSON
 {
-  "name": "THÁI DƯƠNG - Mô Phỏng Điện Mặt Trời Hybrid",
-  "short_name": "THÁI DƯƠNG",
-  "description": "Phần mềm mô phỏng hoạt động hệ thống điện năng lượng mặt trời Hybrid Solis",
-  "start_url": "/solis-hybrid-app/",
-  "scope": "/solis-hybrid-app/",
-  "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#ffffff",
-  "icons": [
-    {
-      "src": "https://nguyenkieuloi97.github.io/solis-hybrid-app/logo.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    }
-  ]
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "Thai Duong Energy",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "Thai Duong Energy",
+  "start_url": "/https://nguyenkieuloi97.github.io/solis-hybrid-app/",
+  "theme_color": "#ffffff"
 }
